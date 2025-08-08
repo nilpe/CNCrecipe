@@ -1,0 +1,50 @@
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{listings}
+\usepackage{nameref}
+\usepackage{plistings}
+\usepackage{latexsym}
+\usepackage{bm}
+\usepackage{amsmath, amssymb}
+\usepackage{here}
+\usepackage{url}
+\usepackage{color}
+
+\newtheorem{Proof}{証明}
+\def\qed{\hfill $\Box$}
+\newcommand{\pr}[1]{\left(#1\right)}
+\newcommand{\bk}[1]{\left[#1\right]}
+\newcommand{\be}[1]{\left\{#1\right\}}
+\newcommand{\ag}[1]{\langle#1\rangle}
+\newcommand{\ve}[2]{\pr{\begin{array}{c}#1\\#2\end{array}}}
+\newcommand{\ma}[2]{\pr{\begin{array}{c}#1\\\vdots\\#2\end{array}}}
+\newcommand{\srcref}[1]{{\tt \nameref{#1}} (Listing \ref{#1}, p.\pageref{#1})}
+
+\lstset{
+    language=C,
+	showstringspaces=false,
+    basicstyle=\ttfamily\scriptsize,
+    commentstyle=\textit\scriptsize\itshape\color[rgb]{0.5,0.7,0.5},
+	keywordstyle=\bfseries\scriptsize\color[rgb]{0.8,0.2,0.4},
+	%ndkeywordstyle=\bfseries\scriptsize\color[rgb]{0.2,0.2,0.8},
+	stringstyle=\ttfamily\scriptsize\color[rgb]{0.9,0.4,0.2},
+    frame=trbL,
+    numbers=left,
+    breaklines=true,
+    title=\lstname,
+	tabsize=4,
+}
+
+\lstset{
+    language=bash,
+	showstringspaces=false,
+    basicstyle=\ttfamily\scriptsize,
+    commentstyle=\textit\scriptsize\itshape\color[rgb]{0.5,0.7,0.5},
+	keywordstyle=\bfseries\scriptsize\color[rgb]{0.8,0.2,0.4},
+	%ndkeywordstyle=\bfseries\scriptsize\color[rgb]{0.2,0.2,0.8},
+	stringstyle=\ttfamily\scriptsize\color[rgb]{0.9,0.4,0.2},
+    frame=trbL,
+    numbers=left,
+    breaklines=true,
+    title=\lstname,
+	tabsize=4,
+}
