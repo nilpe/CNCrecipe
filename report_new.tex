@@ -2,39 +2,162 @@
 \input{mylib.tex}
 \begin{document}
 
-\title{カーネルハック 課題1-3 中間レポート}
-\author{学籍番号202211587 小木勇輝}
+\title{ESP32+FluidNC+Raspberry Pi 4B+CNCjs セットアップ草案}
+\author{草案者: Wood Burned}
 \date{\today}
 \maketitle
 
-\section{test}
+\section{ESP32ボードの準備とファーム書き込み}
 
-loren ipsum
+CNC用モーションコントローラとしてESP32を用いる。ファームウェアはFluidNCを採用する。初期導入はPC上のGoogle ChromeからFluidNC公式のオンラインインストーラを用いる。Web Serial APIを使うためChrome前提とする。
 
-\begin{lstlisting}[caption=bash, label=code:fuga, language=bash]
-$ cat /etc/os-release
-PRETTY_NAME="Ubuntu 22.04.4 LTS"
-NAME="Ubuntu"
-VERSION_ID="22.04"
-VERSION="22.04.4 LTS (Jammy Jellyfish)"
-VERSION_CODENAME=jammy
-ID=ubuntu
-ID_LIKE=debian
-HOME_URL="https://www.ubuntu.com/"
-SUPPORT_URL="https://help.ubuntu.com/"
-BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
-PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
-UBUNTU_CODENAME=jammy
+手順の概観は次の通り。
+\begin{enumerate}
+\item ESP32をUSBでPCに接続する（給電はPC側から行う）。
+\item Google ChromeでFluidNC Web Installerを開き、Connectで該当シリアルポートを選択する。
+\item InstallからESP32向けビルド（Wi-Fi有効版）を選択して書き込む。\footnote{運用ではWi-Fiは使わない。導入や更新時のみ使う方針とする。}
+\item 書き込み完了後、\textbf{インストーラの「Config」（または「Files」）欄}から \texttt{config.yaml} を新規作成する。基本パラメータはここで対話的に調整する（手入力でYAMLを配布せず、インストーラ側で編集・保存する）。
+\end{enumerate}
 
-  \end{lstlisting}
-   \begin{thebibliography}{999}
-    \bibitem{machine}`mouse X5-R7 仕様詳細`､https://www.mouse-jp.co.jp/contents/other/old\_products/file/2021/note/mouse/2111\_mouse\_X5-R7\_2012X5-aR7RNIAR.pdf
-    \bibitem{wiki}`UEFI SSD/カーネルのコンパイル`､https://www.coins.tsukuba.ac.jp/~yas/coins/slab-kernel-2024/hiki/?UEFI SSD/ホストOSでのカーネルのコンパイル
-    \bibitem{qiita1} `組み込みLinuxデバイスドライバの作り方 (6)`､https://qiita.com/iwatake2222/items/ade0a73d4c05fc7961d3
-    \bibitem{hanashin} `カーネルモジュールの作り方`､https://hana-shin.hatenablog.com/entry/2022/02/16/221814
-    \bibitem{haikuhp} `Compiling for x86\_64`､https://www.haiku-os.org/guides/building/compiling-x86\_64
-    \bibitem{haikuerror}`Error: you are using a Haiku clone without tags`､https://discuss.haiku-os.org/t/error-you-are-using-a-haiku-clone-without-tags/3920
-    \bibitem{haikuSyscallPhony}`System calls`､https://www.haiku-os.org/documents/dev/system\_calls/
-    \end{thebibliography}
-  \end{document}
+注意点として、各軸のSTEP/DIR/ENのピン割付は、ESP32で\textbf{出力に使ってよいGPIO}を選ぶ。ブートストラップ用のストラッピングピン（GPIO0, 2, 5, 12, 15）やフラッシュ接続ピン（GPIO6〜11）、入力専用ピン（GPIO34〜39）は避ける。UARTのTX/RX（GPIO1/3）も原則避ける。割付は後述の設定方針と合わせて決定する。
+
+\begin{lstlisting}[caption=Chromeでの書き込みとconfig作成の流れ（要点）, label=code:installer, language=bash]
+1) Chromeでインストーラを開く -> Connect -> ポート選択
+2) Install -> "ESP32 / Wi-Fi" を選んで書き込み
+3) 再起動後、インストーラの "Config" 欄で config.yaml を新規作成・保存
+- 軸やピン、移動量・速度・加速度などはこの画面から編集
+4) 以降の編集・保存も同画面から行う（実機確認->再調整）
+
+\end{lstlisting}
+
+\section{FluidNCの基本設定（Config欄で行う方針）}
+
+本書では、\textbf{基本パラメータを配布せず}、FluidNC Web Installerの\textbf{Config欄から対話的に調整}する。理由は、機械固有の要素（スクリューピッチ、マイクロステップ、剛性、負荷、ドライバ仕様）が初期値を大きく左右するためである。次の考え方で進める。
+
+\subsection*{設定の流れ（対話的チューニング）}
+\begin{enumerate}
+\item 軸とモータの論理構成を定義する（X/Y/Z、スレーブ軸の有無など）。
+\item 各軸の\textbf{ピン割付}を決める。前節の\textbf{使用可能GPIOの制約}を満たす組合せを選ぶ。
+\item \textbf{steps\_per\_mm}は実測で校正する。10,mm, 50,mmの移動指令とダイヤルゲージ等での測長を繰り返し、誤差を詰める。
+\item \textbf{max\_rate}と\textbf{acceleration}は安全側から立ち上げ、失歩・共振・発熱を観察しつつ段階的に上げる。
+\item 方向反転やリミット/プローブ極性は、実機の挙動に合わせて修正する。
+\end{enumerate}
+
+\noindent 補足: Config欄はプレーンテキストでの保存を前提とする。エディタでのリッチテキスト貼付は避ける。
+
+\section{Raspberry Pi 4BへのCNCjs導入（デスクトップ版OS + 公式Dockerfile）}
+
+CNCjsはWebベースのG-code送受信/UIであり、Raspberry Pi 4Bで常用する。OSは\textbf{Raspberry Pi OS（64-bit, Desktop版）}を用いる。導入時のみWi-Fiを有効化し、\textbf{運用は有線（USB/有線LAN）}とする。「電プチ」（突然の電源断）対策として Overlay File System を有効化する運用を推奨する。
+
+\subsection*{OSインストール（Raspberry Pi Imager）}
+\begin{enumerate}
+\item PCでRaspberry Pi Imagerを起動し、OSは\textbf{Raspberry Pi OS (64-bit) with desktop}を選ぶ。
+\item Advanced Settings（歯車）で、ホスト名／ロケール、\textbf{SSH有効化}、\textbf{Wi-Fi設定（導入時のみ使用）}を事前指定して書き込む。
+\item 初回起動後、必要なパッケージを更新する。
+\end{enumerate}
+
+\begin{lstlisting}[caption=初期パッケージ導入（APT）, label=code:apt-init, language=bash]
+sudo apt update
+sudo apt -y full-upgrade
+導入に使うツール群
+
+sudo apt -y install git curl build-essential docker.io
+導入後の運用は有線、Wi-Fiは無効化（必要に応じて）
+
+sudo rfkill block wifi
+\end{lstlisting}
+
+\subsection*{電プチ対策（Overlay File System）}
+Raspberry Pi OSは\texttt{raspi-config}から\textbf{Overlay File System}を有効化できる。運用中はrootfsを実質Read-Only化し、変更はRAM上に乗る。設定変更や更新時は一時的に無効化して再起動する運用にする。
+
+\begin{lstlisting}[caption=OverlayFSの有効化（対話/非対話の例）, label=code:overlay, language=bash]
+対話（raspi-config）
+
+sudo raspi-config # Performance Options -> Overlay File System -> Enable
+非対話（新しめのraspi-configで有効）
+
+sudo raspi-config nonint enable_overlayfs
+sudo reboot
+\end{lstlisting}
+
+\subsection*{CNCjsの導入（公式Dockerfileを用いる）}
+
+公式リポジトリのDockerfileを用いて\textbf{Dockerイメージをローカルビルド}し、コンテナとして常駐運用する。公式Dockerfileは\texttt{dist/cncjs}の成果物を前提とするため、\textbf{先にNode/Yarnでビルドする}。
+
+\paragraph{1) CNCjsのビルド（dist生成）}
+\begin{lstlisting}[caption=Node/Yarnでフロントをビルド（Pi上で可）, label=code:build-dist, language=bash]
+Node 18系を前提（bookworm既定のnodejsで可。必要ならNodeSource等を使用）
+
+sudo apt -y install nodejs npm
+sudo npm -g install yarn
+
+git clone https://github.com/cncjs/cncjs.git
+cd cncjs
+yarn install
+yarn run build # dist/cncjs が生成される
+\end{lstlisting}
+
+\paragraph{2) 公式Dockerfileでイメージ化}
+\begin{lstlisting}[caption=Dockerビルドと起動, label=code:docker-run, language=bash]
+リポジトリ直下にある公式Dockerfileを使用
+
+docker build -t cncjs:local -f Dockerfile .
+デフォルトExposeは 8000。ホスト8080に割り当てる例。
+/dev/ttyUSB* (or /dev/ttyACM*) をコンテナへ渡す
+
+docker run -d --name cncjs
+--restart=unless-stopped
+--device /dev/ttyUSB0
+-p 8080:8000 cncjs:local
+\end{lstlisting}
+
+\paragraph{3) 起動・アクセス・運用方針}
+\begin{itemize}
+\item ブラウザから \texttt{http://<raspi-ip>:8080/} にアクセスし、CNCjs UIを操作する。ブラウザはGoogle Chromeを推奨する。
+\item ESP32はUSB直結し、CNCjsのポート選択で \texttt{/dev/ttyUSB*} または \texttt{/dev/ttyACM*} を選ぶ。
+\item 運用は有線前提、Wi-Fiは基本無効化（導入・更新時のみ有効）。
+\end{itemize}
+
+\begin{lstlisting}[caption=systemdで自動起動（コンテナを常駐させる例）, label=code:systemd, language=bash]
+/etc/systemd/system/cncjs.service
+
+[Unit]
+Description=CNCjs container
+After=network-online.target docker.service
+Wants=docker.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/docker start -a cncjs
+ExecStop=/usr/bin/docker stop cncjs
+
+[Install]
+WantedBy=multi-user.target
+有効化
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now cncjs
+\end{lstlisting}
+
+\section{この草案の要点（実施順）}
+\begin{enumerate}
+\item Google ChromeでFluidNC Web Installerを使い、ESP32へ書き込み後、\textbf{インストーラのConfig欄}から \texttt{config.yaml} を作って編集する（配布YAMLは用いない）。
+\item 各軸のピン割付はESP32のGPIO制約を満たす組合せにする（ストラッピング・フラッシュ・入力専用ピンは避ける）。
+\item Raspberry Pi OSは\textbf{デスクトップ版}をRaspberry Pi Imagerで導入。導入時のみWi-Fi有効、以後は無効化。電プチ対策でOverlayFSを有効化。
+\item CNCjsは\textbf{公式Dockerfile}でローカルビルドし、コンテナ運用する（デフォルトExposeは8000、例では8080へ割当）。
+\end{enumerate}
+
+\begin{thebibliography}{999}
+\bibitem{fluidnc-installer} FluidNC Web Installer（公式）.
+\bibitem{fluidnc-config} FluidNC Config file Overview（公式Wiki）.
+\bibitem{fluidnc-motion} FluidNC Motion Setup（公式Wiki）.
+\bibitem{espressif-gpio} Espressif ESP-IDF: GPIO \& RTC GPIO（公式）.
+\bibitem{espressif-datasheet} Espressif ESP32 Series Datasheet（公式）.
+\bibitem{rpi-imager-wifi} Raspberry Pi Documentation: Wi-Fi/Imager Advanced Settings（公式）.
+\bibitem{rpi-overlay-wp} Raspberry Pi Whitepaper: Making a more resilient file system（公式）.
+\bibitem{cncjs-install} CNCjs Installation / Raspberry Pi Setup Guide（公式）.
+\bibitem{cncjs-dockerfile} CNCjs 公式Dockerfile（master）.
+\bibitem{dockerhub} Docker Hub: cncjs/cncjs（公式イメージ）.
+\end{thebibliography}
+
 \end{document}
