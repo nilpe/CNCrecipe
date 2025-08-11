@@ -4,16 +4,17 @@
 \usetikzlibrary{positioning} % これを必ず追加
 \begin{document}
 
-\title{ESP32+FluidNC+Raspberry Pi 4B+CNCjs セットアップ草案}
-\author{草案者: Wood Burned}
+\title{ESP32+FluidNC+Raspberry Pi 4B+CNCjs レシピ本}
+\author{文責:小木勇輝}
 \date{\today}
 \maketitle
 
+\tableofcontents
 
 
 \section{概念設計図}
 
-本章では、Raspberry Pi 4B上でCNCjsを動作させ、USB経由でESP32(FluidNC)を直接制御する構成の全体像を示す。高校卒業直後の初学者を想定し、Linuxやモーション制御の基礎から説明する。
+本章では、Raspberry Pi 4B上でCNCjs(用語等は後述)を動作させ、USB経由でESP32(FluidNC)を直接制御する構成の全体像を示す。高校卒業直後の初学者を想定し、Linuxやモーション制御の基礎から説明する。
 
 \subsection{全体構成}
 
@@ -40,39 +41,30 @@ Raspberry Pi 4B上でCNCjsを起動し、USB接続されたESP32(FluidNC)に対�
 
 \subsection{必要構成要素}
 \begin{itemize}
-    \item Raspberry Pi 4B本体（CNCjs動作用）
+    \item Raspberry Pi 4B(4GB)本体（CNCjs動作用）
     \item ESP32ボード（FluidNCファームウェア書き込み済み）
     \item ステッピングドライバ（TB6600など､3A4線バイポーラ出力に対応したもの）
     \item ステッピングモーター（NEMA17/23など）
-    \item 電源（モーター駆動用 24V系、Raspberry Pi/ESP32用 5V系）
+    \item スピンドルモーター (E25コレットに対応したもの)
+    \item 電源（モーター駆動用 24V系 2つ、Raspberry Pi/ESP32用 5V系）
     \item USBケーブル（Raspberry PiとESP32の接続用）
 \end{itemize}
 
 \subsection{信号と電力の流れ}
 \begin{itemize}
     \item 信号経路: Raspberry Pi (CNCjs) $\to$ ESP32 (FluidNC) $\to$ ステッピングドライバ $\to$ モーター
-    \item 電力経路: 24V系(モーター/ドライバ駆動), 5V系(Raspberry Pi/ESP32駆動)
+    \item 電力系統: 24V系(モーター/ドライバ駆動), 5V系(Raspberry Pi/ESP32駆動)
 \end{itemize}
 
 \subsection{ソフトウェア構成}
 \begin{itemize}
-    \item Raspberry Pi OS:Raspberry PiのOS(Operating Software)｡Mac OSの遠い親戚｡
+    \item Raspberry Pi OS:Raspberry PiのOS｡Mac OSの遠い親戚｡
     \item CNCjs: ブラウザベースのCNC操作UI。Raspberry Pi上で動作。
     \item FluidNC: ESP32上で動作するCNC制御ファームウェア。G-codeを解釈しモーション制御信号を生成。
 \end{itemize}
 
 \subsection{用語集}
-\begin{description}
-    \item[G-code] CNC機械を制御するための標準命令セット。例: G0/G1は直線移動､などの規則がある。
-    \item[ステッピングモーター] 一定角度ごとに回転するモーター。精密位置決めに用いる。
-    \item[STEP/DIR/EN] ドライバに送る基本制御信号。STEPはパルス数で移動量、DIRは方向、ENは有効化。
-    \item[ステップ] ステッピングモーターが動作する最小単位｡
-    \item[ホーミング] 原点位置を決定する動作。現状省略。
-    \item[Linux] オープンソースのある条件を満たすOSの総称。Raspberry Pi OSもLinux系。
-    \item[CLI(Command Line Interface)] 文字入力でコンピュータを操作する方式。ターミナルやシェルで実行。｢コマンドプロンプト｣だと思って良い｡
-    \item[シェル] CLIの実行環境。bashやzshなど。
-    \item[USBシリアル通信] USB経由でシリアルデータを送受信する方式。ESP32との接続に用いる。
-\end{description}
+末尾の｢おまけ｣欄を参照すること｡
 
 \subsection{最低限調べておいてほしいこと}
 
@@ -122,7 +114,6 @@ CNC用モーションコントローラとしてESP32を用いる。ファーム
 注意点として、各軸のSTEP/DIR/ENのピン割付は、ESP32で\textbf{出力に使ってよいGPIO}を選ぶ。ブートストラップ用のストラッピングピン（GPIO0, 2, 5, 12, 15）やフラッシュ接続ピン（GPIO6〜11）、入力専用ピン（GPIO34〜39）は避ける。UARTのTX/RX（GPIO1/3）も原則避ける。割付は後述の設定方針と合わせて決定する。ピン番号は必ず最新の情報を確認すること｡
 
 
-\newpage
 
 \subsection{FluidNCの基本設定（Config欄で行う方針）}
 
@@ -130,7 +121,7 @@ CNC用モーションコントローラとしてESP32を用いる。ファーム
 
 \subsubsection*{設定の流れ（対話的チューニング）}
 \begin{enumerate}
-\item 軸とモータの論理構成を定義する（X/Y/Z、スレーブ軸の有無など）。
+\item 軸とモータの論理構成を定義する（X/Y/Z/A、スレーブ軸の有無など）。
 \item 各軸の\textbf{ピン割付}を決める。前節の\textbf{使用可能GPIOの制約}を満たす組合せを選ぶ。
 \item \textbf{steps\_per\_mm}(例:320steps/mm)は実測で校正する。適当な手段での測長を繰り返し、誤差を詰める。
 \item \textbf{max\_rate}と\textbf{acceleration}は安全側から立ち上げ、脱調・共振・発熱を観察しつつ段階的に上げる。
@@ -167,13 +158,14 @@ sudo reboot now
 \end{lstlisting}
 
 \subsubsection*{電プチ対策（Overlay File System）}
-Raspberry Pi OSは\texttt{raspi-config}から\textbf{Overlay File System}を有効化できる。運用中はrootfsを実質Read-Only化し、変更はRAM上に乗る。設定変更や更新時は一時的に無効化して再起動する運用にする。
+Raspberry Pi OSは\texttt{raspi-config}から\textbf{Overlay File System}を有効化できる。運用中はrootfsを実質Read-Only化し、変更はRAM上に乗せる。設定変更や更新時は一時的にこれを無効化して再起動する運用にする。\\
+\emph{Raspberry Piは正常にシャットダウンされないと高確率でOSのデータが吹き飛ぶ｡悲しい思いをしたくなければこの項を実行すること｡}
 
 \begin{lstlisting}[caption=OverlayFSの有効化（対話/非対話の例）, label=code:overlay, language=bash]
-対話（raspi-config）
+# 対話UIで行う方法（raspi-config）
 
 sudo raspi-config # Performance Options -> Overlay File System -> Enable
-非対話（新しめのraspi-configで有効）
+# 非対話UIで行う方法（新しめのraspi-configで有効）
 
 sudo raspi-config nonint enable_overlayfs
 sudo reboot
@@ -331,7 +323,115 @@ CNCマシンの動作精度および加工効率は、制御パラメータの�
     \item ワーク設置面が水平であること（水平器等で確認）
     \item ワークが加工中に動かないよう確実に固定されていること（ネジ等の締結状態を確認）
 \end{itemize}
-一年に一度は水平出しを行うこと｡フラットベッドに用いられている木材が湿気により変形するため､必ずしも水平であることが保証されないからである｡
+フラットベッドは湿度変化に伴う木材の反り・歪み、および過切削による表面凹凸の発生が避けられない構造である。このため、年に一度程度を目安に水平出しを実施し、加工精度を維持することが望ましい。
+\subsection{フラットベッドの水平出し}
+
+本機のフラットベッドはスタイロフォーム製であり、湿度による変形や過切削による凹凸の影響を受けやすい。そのため、年に一度程度を目安に水平出しを行い、加工精度を維持することが望ましい。対象ベッドの標準サイズは幅910~mm、長さ1820~mmである。
+
+\subsubsection*{作業目的}
+水平出しは、ベッド全体を浅く切削して平坦性を回復させる作業である。スタイロフォーム製ベッドでは切り込み量を3～5~mm程度まで許容できるため、凹凸の修正を一度で行える場合が多い。
+
+\subsubsection*{事前準備}
+\begin{itemize}
+    \item 加工前に必ずベッド上の釘やネジ、その他金属部品をすべて撤去する。これを怠ると工具の破損や事故につながる。
+    \item 面取り用またはサーフェスカッター（直径16～25~mm程度、2～3枚刃超硬）を準備する。
+    \item 集塵機やエアブローにより切削粉の排出経路を確保する。
+\end{itemize}
+
+\subsubsection*{手順}
+\begin{enumerate}
+    \item \textbf{原点設定}：ベッド左前端をワーク原点とする。Z原点は適切に設定する。
+    \item \textbf{加工範囲設定}：実寸に基づき、X方向910~mm、Y方向1820~mmの範囲を指定する。安全マージンとして外周20~mm程度を追加してもよい。
+    \item \textbf{切削条件設定}：
+    \begin{itemize}
+        \item 切り込み量（Z方向）：3.0～5.0~mm／パス
+        \item 送り速度：500～800~mm/min
+        \item スピンドル回転数：10,000～16,000~rpm
+    \end{itemize}
+    \item \textbf{パス生成}：CAMソフトにて全面を覆う走査パスを作成する。各パスの間隔は工具径の80～90\%程度とし、パスをオーバーラップさせることで段差を低減する。X方向とY方向の交互切削を推奨するが､非常に時間がかかるのでやらなくても良い。
+    \item \textbf{切削実行}：初回は小さい領域を浅めに加工し、ベッド全体の高低差を確認する。必要に応じて深さを追加して全面を削る。
+    \item \textbf{仕上げ確認}：加工後、凹凸が許容範囲内であれば作業を終了する。
+\end{enumerate}
+
+\subsubsection*{注意事項}
+\begin{itemize}
+    \item 切り込み量が大きい場合でも、ベッド全体を一度で削り切らず、2～3回に分けて行う方が精度を確保しやすい。
+    \item 水平出し後は必ず座標系および固定治具の高さを再設定する。
+\end{itemize}
+適切な設定を行わないと､30時間以上かかる可能性がある｡太いエンドミルを使うことや､サーフェスカッターを購入することを検討すると良い｡
+｢裏技｣として､6～8時間程度でこれを完了させる方法が存在するが､再現性に乏しいこと､あまり好ましくない方法であることからここには記載しない｡
+
+\section{おまけ}
+\subsection*{用語集（機械／加工）}
+\begin{description}
+  \item[ステッピングモーター] パルス信号で一定角度ずつ回転するモーター。位置制御に用いる。
+  \item[ステッピングドライバ] ステッピングモーターを駆動する回路／モジュール。電流制御やマイクロステップ生成を行う。
+  \item[NEMA17・NEMA23] モーターの取付け寸法規格。数字はフレーム外形（インチ）。NEMA17≈1.7 in（約42 mm）、NEMA23≈2.3 in（約57 mm）。
+  \item[バイポーラ] モーター巻線に双方向の電流を流す駆動方式。一般にユニポーラより高トルクだが電流制御が必要。
+  \item[リードスクリュー] 回転を直線運動に変えるねじ機構。
+  \item[マイクロステップ] 巻線電流を細かく制御して1ステップを更に分割する駆動。滑らかさ・振動低減に有効（絶対精度は機械剛性や負荷に依存）。
+  \item[保持トルク] 通電して静止を保てる最大トルク。大きいほど外力に強い。
+  \item[脱調] 指令ステップと実際の回転がずれる現象。過負荷・加減速過大・共振などが原因。
+  \item[共振] 機構の固有振動数と駆動周波数が一致して振動が増える現象。速度帯の回避や減衰で対策。
+  \item[バックラッシュ] ねじやギアの遊びによる方向反転時のガタ。オフセット補正やプリロードで低減。
+  \item[リミットスイッチ] 移動端を検出する機械スイッチ。原点復帰や過走行防止に用いる。
+  \item[NC（常閉）接点] 通常は導通し、作動で開放する接点。断線を検知しやすい。
+  \item[Zプローブ] 工具先端のZ=0位置（ワーク上面など）を自動検出する仕組み。
+  \item[スピンドル] 工具を回転させる主軸（モーター）。回転数や剛性が切削品質に影響。
+  \item[エンドミル] 側面・底面で切削できる回転工具。材質・刃数・コーティングで用途が分かれる。
+  \item[サーフェスカッター] ベッドや材料の面出し（平面出し）に使う広幅工具。
+  \item[送り速度] 工具とワークの相対移動速度（mm/min）。切削負荷や仕上げ面に影響。
+  \item[ツール長補正] 工具ごとの長さ差をZオフセットで補正する機能（TLO）。
+  \item[ツイストペア（線）] 2本の導線を撚って外来ノイズを相殺する配線方法。
+  \item[フェライトコア] ケーブルに装着して高周波ノイズを減衰させる磁性体部品。
+  \item[ケーブルクランプ] ケーブルを固定し、引張応力や振動から保護する部品。
+  \item[配線ダクト] ケーブルを収めて整理する樹脂製トラフ（スリット入りも多い）。
+\end{description}
+
+\subsection*{用語集（電気／信号）}
+\begin{description}
+  \item[STEP] ステッピングモーターの回転指令パルス信号。
+  \item[DIR] ステッピングモーターの回転方向を指定する信号。
+  \item[EN] モーター駆動の有効／無効を切り替える信号（Enable）。
+  \item[GPIO] 汎用入出力ピン（General Purpose Input/Output）。
+  \item[UART（TX/RX）] シリアル通信方式の一種。TXは送信、RXは受信。
+  \item[フォトカプラ] 光を介して信号を伝える絶縁素子。ノイズ耐性・安全性向上に使う。
+  \item[GND] 電気回路の基準電位（グラウンド）。
+  \item[PWM] パルス幅変調。デジタル信号のON/OFF比でアナログ量を表現。
+  \item[DIPスイッチ] 小型のレバー式切り替えスイッチ。設定変更に使う。
+  \item[ストラッピングピン] 起動時の設定を決定するための固定配線端子。
+  \item[ENライン] Enable信号線。機器や回路の動作を有効化する。
+\end{description}
+
+\subsection*{用語集（CNC固有）}
+\begin{description}
+  \item[G-code] CNC機械を制御するための標準的な命令コード。
+  \item[機械原点（Machine Zero）] 機械の基準座標系の原点位置。
+  \item[ワーク原点（Work Zero）] 加工対象物に対する基準位置。
+  \item[Homing（原点復帰）] リミットスイッチ等を使って機械原点に戻す動作。
+  \item[ジョグ操作] 手動(ソフト上)で軸を少しずつ動かす操作。
+  \item[ソフトリミット] 制御ソフト上で設定された移動範囲制限。
+\end{description}
+
+\subsection*{用語集（安全／規格）}
+\begin{description}
+  \item[E-Stop（非常停止）] 緊急時に機械の動作を即時停止させる装置（Emergency Stop）。
+  \item[安全カバー] 作業者を切削くずや工具から保護する覆い。安全規格に準拠する場合も多い。
+  \item[IP65] 国際防水・防塵規格。粉塵の侵入を完全防止し、あらゆる方向からの噴流水にも耐える。
+  \item[B接点] 作動すると導通が切れる接点（NCと同義）。安全検出回路で使用されることが多い。
+  \item[ヒヤリハット] 事故には至らないが、危険につながりかけた事象の記録・共有。
+\end{description}
+
+\subsection*{用語集（数量／単位／制御パラメータ）}
+\begin{description}
+  \item[steps per mm] 1 mm移動するのに必要なステップ数。機構寸法とマイクロステップ設定で決まる。
+  \item[max rate] 最大移動速度。加工や機構に応じて設定する。
+  \item[acceleration] 加速度。加減速のスムーズさや脱調防止に影響する。
+  \item[rpm] 回転毎分（revolutions per minute）。モーターやスピンドルの回転速度の単位。
+  \item[mm/min] 移動速度や送り速度の単位（毎分ミリメートル）。
+\end{description}
+
+
 
 \begin{thebibliography}{999}
 \bibitem{fluidnc-installer} FluidNC Web Installer（公式）.
