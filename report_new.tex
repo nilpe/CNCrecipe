@@ -1,36 +1,56 @@
 \documentclass[uplatex,dvipdfmx]{ujarticle}
+
+% ========================================
+% Preamble
+% ========================================
 \input{mylib.tex}
 \usepackage{tikz}
-\usetikzlibrary{positioning} % これを必ず追加
+\usetikzlibrary{positioning,arrows.meta} % 図用
+\usepackage{listings}                    % コード表示
+\usepackage[dvipdfmx,hidelinks]{hyperref}
+\usepackage{pxjahyper}                   % 日本語しおり
+\usepackage{siunitx}                     % 単位表記
+\sisetup{detect-all=true}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  upquote=true
+}
+
 \begin{document}
 
-\title{ESP32+FluidNC+Raspberry Pi 4B+CNCjs レシピ本}
-\author{文責:小木勇輝}
+\title{ESP32 + FluidNC + Raspberry Pi 4B + CNCjs レシピ本}
+\author{文責: 小木勇輝}
 \date{\today}
 \maketitle
 
 \tableofcontents
 \newpage
+
 \section{まえがき}
 
-本書はつくば鳥人間の会(TBW)向けに筆者(24代小木勇輝)が制作したCNCシステム電装系のレシピ本である｡本質的にCNCは非常に危険であり制御系が難解ではあるが､その構造や仕組みを理解することによる利益が大きいため､本書がその一助になることを期待する｡
-本書を読むことで､シングルボードコンピュータ(Raspberry Piなど)上でCNCコントローラーを実行し､マイコン(ESP32など)でステッピングモータドライバを駆動させることができるようになる｡\\
-本書は高校卒業直後の初学者を想定するが､知らない単語が存在した場合は適宜Google検索やChatGPTなどを活用することを推奨する。
+本書は、つくば鳥人間の会（TBW）向けに筆者（24代 小木勇輝）が制作したCNCシステム電装系のレシピ本である。CNCは本質的に危険で、制御系も難解である。しかし、その構造や仕組みを理解する利点は大きく、本書がその一助となることを期待する。
 
+本書を読むことで、シングルボードコンピュータ（Raspberry Pi など）上でCNCコントローラUI（CNCjs）を動作させ、マイコン（ESP32 など）でステッピングモーター・ドライバを駆動できるようになる。
+
+想定読者は高校卒業直後の初学者とする。わからない語は末尾の用語集を参照し、それでも不明な点は適宜 Google 検索や ChatGPT を用いて補うこと。
 
 \section{概念設計図}
 
-本章では、Raspberry Pi 4B上でCNCjsを動作させ、USB経由でESP32(FluidNC)を直接制御する構成の全体像を示す。
+本章では、Raspberry Pi 4B 上で CNCjs を動作させ、USB 経由で ESP32（FluidNC）を直接制御する最小構成の全体像を示す（図\ref{fig:minimal}）。
+
 \subsection{全体構成}
 
-Raspberry Pi 4B上でCNCjsを起動し、USB接続されたESP32(FluidNC)に対しG-codeを送信する。ESP32はモーター制御信号(STEP/DIR/EN)をステッピングドライバへ出力し、ドライバはステッピングモーターを駆動する。
+Raspberry Pi 4B 上で CNCjs を起動し、USB 接続された ESP32（FluidNC）に対し G-code を送信する。ESP32 はモーター制御信号（STEP／DIR／EN）をステッピングドライバへ出力し、ドライバがステッピングモーターを駆動する。
 
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[
   font=\small,
   node distance=23mm,
-  box/.style={draw, minimum width=20mm, minimum height=12mm, align=center, rounded corners=2pt}
+  box/.style={draw, minimum width=22mm, minimum height=12mm, align=center, rounded corners=2pt}
 ]
 \node[box] (raspi) {Raspberry Pi 4B\\CNCjs};
 \node[box, right=of raspi] (esp32) {ESP32\\FluidNC};
@@ -38,436 +58,478 @@ Raspberry Pi 4B上でCNCjsを起動し、USB接続されたESP32(FluidNC)に対�
 \node[box, right=of driver] (motor) {ステッピング\\モーター};
 
 \draw[->] (raspi) -- node[above]{USB} (esp32);
-\draw[->] (esp32) -- node[above]{STEP DIR EN} (driver);
-\draw[->] (driver) -- node[above]{回転駆動} (motor);
+\draw[->] (esp32) -- node[above]{STEP/DIR/EN} (driver);
+\draw[->] (driver) -- node[above]{回転駆動電流} (motor);
 \end{tikzpicture}
 \caption{Raspberry Pi 直結の最小構成}
+\label{fig:minimal}
 \end{figure}
 
-\subsection{必要構成要素}
-以下は一例｡末尾の｢おまけ｣欄に選定基準を載せておくのでそちらも参照｡
+\subsection{必要構成要素（最小）}
+
+以下は最小構成の一例である。詳細な選定基準は末尾「おまけ＞選定基準一覧」を参照。
+
 \begin{itemize}
-    \item シングルボードコンピュータ(Raspberry Pi 4B 4GB など)本体（CNCjs動作用）
-    \item ESP32ボード
-    \item ステッピングドライバ（TB6600など､3A4線バイポーラ出力に対応したもの）
-    \item ステッピングモーター（NEMA17/23など）
-    \item スピンドルモーター (ER25コレットに対応したものが好ましい)    
-    \item 電源（モーター駆動用 24V系 2つ、Raspberry Pi/ESP32用 5V系）
-    \item USBケーブル（Raspberry PiとESP32の接続用）
+  \item シングルボードコンピュータ（例：Raspberry Pi 4B 4\,GB）… CNCjs 動作用
+  \item ESP32 ボード … FluidNC を動作
+  \item ステッピングドライバ（例：TB6600 系、3\,A 級、4 線バイポーラ対応）
+  \item ステッピングモーター（NEMA17／23 対応品など）
+  \item スピンドルモーター（ER25 コレット対応を推奨）
+  \item 電源（24\,V 系：ステッピング用、スピンドル用電源：DC もしくは VFD、5\,V 系：Raspberry Pi／ESP32）
+  \item USB ケーブル（Raspberry Pi と ESP32 の接続用）
 \end{itemize}
 
 \subsection{信号と電力の流れ}
+
 \begin{itemize}
-    \item 信号経路: Raspberry Pi (CNCjs) $\to$ ESP32 (FluidNC) $\to$ ステッピングドライバ $\to$ モーター
-    \item 電力系統: 24V系(モーター/ドライバ駆動), 5V系(Raspberry Pi/ESP32駆動)
+  \item 信号経路：Raspberry Pi（CNCjs） $\to$ ESP32（FluidNC） $\to$ ステッピングドライバ $\to$ モーター
+  \item 電力系統：24\,V 系（モーター／ドライバ）、スピンドル用（独立系統）、5\,V 系（Raspberry Pi／ESP32）
 \end{itemize}
 
 \subsection{ソフトウェア構成}
-\begin{itemize}
-    \item Raspberry Pi OS(64Bit):LinuxベースのデスクトップOS。GUI環境があり、Windowsに似た操作感で扱える｡
-    \item CNCjs: ブラウザベースのCNC操作UI。Raspberry Pi上で動作。
-    \item FluidNC: ESP32上で動作するCNC制御ファームウェア。G-codeを解釈しモーション制御信号を生成。
-\end{itemize}
 
-\subsection{用語集}
-末尾の｢おまけ｣欄を参照すること｡
+\begin{itemize}
+  \item Raspberry Pi OS（64-bit）：Linux ベースのデスクトップ OS。GUI 環境があり、扱いやすい。
+  \item CNCjs：ブラウザベースの CNC 操作 UI。Raspberry Pi 上で動作。
+  \item FluidNC：ESP32 上で動作する CNC 制御ファームウェア。G-code を解釈してモーション制御信号を生成する。
+\end{itemize}
 
 \subsection{最低限調べておいてほしいこと}
 
-本構成を安全かつ効率的に理解し運用するため、以下の基礎事項は事前に調べておくことを推奨する。いずれも高度な専門書を読む必要はないが、概要と主要用語を把握しておくべきである。
-
 \begin{description}
-  \item[Linuxとは何か]  
-    オープンソースのUNIX系オペレーティングシステムであり、Raspberry Pi OSもこれに属する。ファイルシステムの階層構造、ユーザーと権限の概念、パッケージマネージャ(例: \texttt{apt})、コマンドライン操作(CLI)などの基本を理解しておくこと。
-  
-  \item[Raspberry Piとは何か]  
-    ARM系プロセッサを搭載した小型シングルボードコンピュータであり、低消費電力でLinuxを動作させられる。本構成ではCNCjsのホストとして使用する。GPIO端子やUSBポートなどの基本的なハード構造も確認しておくこと。
-
-  \item[高校電磁気の復習]  
-    直流回路のオームの法則($V=IR$)、抵抗・コイル・コンデンサの基本特性、電力計算($P=VI$)、直列/並列接続の違い、電流と磁界の関係、誘導起電力の概念など。ステッピングモーターやドライバの動作理解に不可欠である。
-
-  \item[ステッピングモーターとは何か]  
-    電気パルスの入力に応じて一定角度ずつ回転するモーター。1回転あたりのステップ数、マイクロステップ制御、保持トルク、脱調の概念を把握すること。STEP/DIR信号と回転方向・回転量の関係も確認する。
-  
-    \item[CNCによる死亡事故例やヒヤリハット]  
-    CNC装置は強力な駆動系を持ち、加工対象や工具が高速で移動するため、不適切な操作や安全管理不足により死亡事故や重大な負傷が発生している。過去には回転工具への巻き込まれ、破損工具の飛散、固定不良材料の射出、制御系誤動作による衝突などが報告されている。実際の事故事例やヒヤリハット事例を調べ、危険要因とその防止策を理解しておくこと。非常停止(E-Stop)や安全カバーの有効性についても確認する。
-
-
+  \item[Linux の基礎] ファイルシステム、ユーザーと権限、パッケージ管理（\texttt{apt} など）、CLI 操作。
+  \item[Raspberry Pi の基礎] ARM 系 CPU、シングルボードコンピュータの制約、GPIO／USB の基本。
+  \item[高校電磁気の復習] オームの法則 $V=IR$、抵抗・コイル・コンデンサ、電力 $P=VI$、直列／並列、誘導起電力の概念。
+  \item[ステッピングモーター] ステップ角、マイクロステップ、保持トルク、脱調、STEP／DIR と回転量の関係。
+  \item[CNC の事故例] 巻き込まれ、工具破損の飛散、固定不良、誤動作衝突などの危険要因と対策。非常停止（E-Stop）、安全カバーの有効性。
 \end{description}
 
-\subsection{安全留意事項}
+\subsection{安全留意事項（最重要）}
+
 \begin{itemize}
-    \item モーター動作中は手や物を可動部に近づけない。
-    \item 電源投入前に配線の正誤と固定状態を確認する。
-    \item 電源系は系統ごとにヒューズを設ける。
-    \item 手袋をつけてNCを稼働させない｡
+  \item モーター・スピンドル動作中は可動部へ手や物を近づけない。長髪は束ね、ゆったりした服や手袋は着用しない。
+  \item 工具交換時は電源断を徹底。
+  \item 電源投入前に配線の正誤と固定状態を確認。各系統に適切なヒューズを設ける。
+  \item \textbf{Z プローブ未搭載時}は Z=0 設定ミスによる突き刺しに注意。初動は必ず浅切込みまたは空中動作で確認する。
 \end{itemize}
 
 \section{セットアップ編}
 
-\subsection{ESP32ボードの準備とファーム書き込み}
+\subsection{ESP32 ボードの準備とファーム書き込み}
 
-CNC用モーションコントローラとしてESP32を用いる。ファームウェアはFluidNCを採用する。初期導入はPC上のGoogle ChromeからFluidNC公式のオンラインインストーラを用いる。Web Serial APIを使うためChromeを前提とする。
-
-手順の概観は次の通り。
+CNC 用モーションコントローラとして ESP32 を用い、ファームウェアは FluidNC を採用する\cite{fluidnc-installer,fluidnc-config}。初期導入は PC 上の Google Chrome から FluidNC 公式 Web Installer を使用（Web Serial API のため Chrome 前提\cite{chrome-webserial}）。
+\paragraph{手順概観}
 \begin{enumerate}
-\item ESP32をUSBで適当なPCに接続する（給電はPC側/基板側の二冗長系で行うとよい）。
-\item Google ChromeでFluidNC Web Installerを開き、Connectで該当シリアルポートを選択する。
-\item InstallからLatestビルド（Wi-Fi有効版）を選択して書き込む。\footnote{運用ではWi-Fiは使わない。導入や更新時のみ使う方針とする。}
-\item 書き込み完了後、\textbf{インストーラの「Config」（または「Files」）欄}から \texttt{config.yaml} を新規作成する。基本パラメータは後で対話的に調整する（手入力でYAMLを記入せず、インストーラ側で編集・保存する）。
+  \item ESP32 を USB で手元の PC に接続する（給電は PC 側／基板側の二冗長系を推奨）。
+  \item Chrome で FluidNC Web Installer を開き、Connect で該当シリアルポートを選択。
+  \item Install から Latest ビルド（Wi-Fi 有効版）を選択して書き込む。\footnote{運用では Wi-Fi は使用しない。導入・更新時のみ有効化の方針。}
+  \item 書き込み完了後、\textbf{Installer の「Config」または「Files」}から \texttt{config.yaml} を新規作成。基本パラメータは実機を見ながら対話的に調整する（エディタの生 YAML 直書きより Web UI 編集・保存を推奨）。
 \end{enumerate}
 
-注意点として、各軸のSTEP/DIR/ENのピン割付は、ESP32で\textbf{出力に使ってよいGPIO}を選ぶ。ブートストラップ用のストラッピングピン（GPIO0, 2, 5, 12, 15）やフラッシュ接続ピン（GPIO6〜11）、入力専用ピン（GPIO34〜39）は避ける。UARTのTX/RX（GPIO1/3）も原則避ける。割付は後述の設定方針と合わせて決定する。ピン番号は必ず最新の情報を確認すること｡
+\paragraph{GPIO 選定の注意点}
+STEP／DIR／EN のピン割付では、\textbf{出力に使ってよい GPIO} のみを選ぶ。以下は避ける\cite{espressif-gpio,espressif-datasheet}。
+\begin{itemize}
+  \item ブートストラッピング用ピン：GPIO 0, 2, 4, 5, 12, 15（特に GPIO12 はブート時電圧でフラッシュ電圧選択に関与）
+  \item フラッシュ接続ピン：GPIO 6--11
+  \item 入力専用ピン：GPIO 34--39
+  \item UART TX/RX（GPIO 1/3）は原則避ける
+\end{itemize}
+\textbf{必ず最新の資料でピン機能を確認}してから割付を決定すること。
 
+\subsection{FluidNC の基本設定（Config 欄での方針）}
 
-
-\subsection{FluidNCの基本設定（Config欄で行う方針）}
-
-本書の\textbf{基本パラメータを信用せず}、FluidNC Web Installerの\textbf{Config欄から対話的に､必ず実機を見て調整}する。理由は、機械固有の要素（スクリューピッチ、マイクロステップ、剛性、負荷、ドライバ仕様）が設定値を大きく左右するためである。次の考え方で進める。
+本書の数値を固定値として信用せず、\textbf{実機を見ながら Config 欄で対話的に調整}する\cite{fluidnc-motion}。理由は、スクリューピッチ、マイクロステップ、剛性、負荷、ドライバ仕様といった\textbf{機械固有要素}が設定値を大きく左右するためである。
 
 \subsubsection*{設定の流れ（対話的チューニング）}
 \begin{enumerate}
-\item 軸とモータの論理構成を定義する（X/Y/Z/A、スレーブ軸の有無など）。
-\item 各軸の\textbf{ピン割付}を決める。前節の\textbf{使用可能GPIOの制約}を満たす組合せを選ぶ。
-\item \textbf{steps\_per\_mm}(例:320steps/mm)は実測で校正する。適当な手段での測長を繰り返し、誤差を詰める。
-\item \textbf{max\_rate}と\textbf{acceleration}は安全側から立ち上げ、脱調・共振・発熱を観察しつつ段階的に上げる。
-\item 方向反転やリミット極性は、実機の挙動に合わせて修正する。
+  \item 軸構成（X／Y／Z／A、スレーブ軸の有無）を定義。
+  \item 各軸の\textbf{ピン割付}を決定（使用可能 GPIO 制約を満たすように）。
+  \item \textbf{steps\_per\_mm}（例：\SI{320}{steps\per\milli\meter}）は実測で校正。測長と微調整を繰り返す。
+  \item \textbf{max\_rate} と \textbf{acceleration} は低めから開始し、脱調・共振・発熱を観察しつつ段階的に引き上げる。
+  \item 方向反転やリミット極性は実機挙動に合わせて修正。
 \end{enumerate}
 
-\noindent 補足: Config欄はWeb UIでの保存を前提とする。エディタでのテキスト貼付は避ける。
-\subsection{Raspberry Pi 4BへのCNCjs導入（デスクトップ版OS + 公式手順）}
+\noindent 補足：Config は Web UI から保存する前提。外部エディタでの貼付は極力避ける。
 
-CNCjsはWebベースのG-code送受信/UIであり、Raspberry Pi 4Bで常用する。OSは\textbf{Raspberry Pi OS（64-bit, Desktop版）}を用いる。\textbf{運用は有線（USB/有線LAN）}とする。「電プチ」（突然の電源断）対策として Overlay File System を有効化する運用を推奨する。
+\subsection{Raspberry Pi 4B への CNCjs 導入（デスクトップ OS + 公式手順）}
 
-\subsubsection*{OSインストール（Raspberry Pi Imager）}
+CNCjs\cite{cncjs-site} は Web ベースの G-code 送受信／UI であり、Raspberry Pi 4B で常用する。OS は\textbf{Raspberry Pi OS（64-bit, Desktop 版）} \cite{rpi-os}を用い、\textbf{運用は有線（USB／有線 LAN）}とする。\textbf{突然の電源断（いわゆる「電プチ」）対策}として Overlay File System の有効化を推奨\cite{rpi-config,rpi-overlay-wp}。
+\subsubsection*{OS インストール（Raspberry Pi Imager）}
 \begin{enumerate}
-\item PCでRaspberry Pi Imagerを起動し、OSは\textbf{Raspberry Pi OS (64-bit) with desktop}を選ぶ。
-\item 適切なドライブを選択し､ホスト名／ロケール、\textbf{SSH有効化}、\textbf{Wi-Fi設定（導入時のみ使用）}など好みの設定を事前指定して書き込む。
-\item 初回起動後、必要なパッケージを更新する。
+  \item PC で Raspberry Pi Imager を起動し\cite{rpi-imager}、OS は \textbf{Raspberry Pi OS (64-bit) with desktop} を選ぶ。
+  \item ホスト名／ロケール、\textbf{SSH 有効化}、\textbf{Wi-Fi 設定（導入時のみ使用）}などを事前設定して書き込む\cite{rpi-imager-adv}。
+  \item 初回起動後、必要なパッケージを更新する。
 \end{enumerate}
 
 \begin{lstlisting}[caption=初期パッケージ導入（APT）, label=code:apt-init, language=bash]
-# Raspberry Pi OSの更新
+# Raspberry Pi OS の更新
 sudo apt update
 sudo apt -y full-upgrade
 
 # 導入に使うツール群
 sudo apt -y install git curl build-essential
 
-# Node.js (Bookworm既定のnodejsでも可。必要に応じてNodeSourceを利用)
+# Node.js（Bookworm 既定の nodejs でも可。必要に応じて NodeSource を利用）
 sudo apt -y install nodejs npm
 
-# Yarnの導入（必要に応じて）
+# Yarn（必要に応じて）
 sudo npm -g install yarn
 \end{lstlisting}
 
+\subsubsection*{CNCjs の導入（公式手順を参照）}
 
-
-\subsubsection*{CNCjsの導入（公式手順）}
-CNCjsは公式にnpm経由で提供されている。Node.js環境が整った状態で以下を実行する。
-
-\begin{lstlisting}[caption=CNCjsのインストールと起動, label=code:cncjs-install, language=bash]
-# npmでCNCjsを導入
-sudo npm install -g cncjs@latest
-
-# サービスとして常駐させたい場合は systemd を利用
-# 例: cncjs.service を作成し、自動起動を有効化｡応用なので割愛
+\begin{lstlisting}
+sudo npm install -g cncjs@latest --unsafe-perm
 \end{lstlisting}
+CNCjsは公式インストール手順に従う\cite{cncjs-install,cncjs-rpi,cncjs-npm}。Node.js は OS 付属版または NodeSource 提供版を利用できる\cite{nodejs-pkg,nodesource}。常駐化には systemd サービス化を行う\cite{systemd-service}。応用編となるので詳細は割愛｡
+
+
 \subsubsection*{電プチ対策（Overlay File System）}
-Raspberry Pi OSは\texttt{raspi-config}から\textbf{Overlay File System}を有効化できる。運用中はrootfsを実質Read-Only化し、変更はRAM上に乗せる。設定変更や更新時は一時的にこれを無効化して再起動する運用にする。\\
-\emph{Raspberry Piは正常にシャットダウンされないと高確率でOSのデータが吹き飛ぶ｡悲しい思いをしたくなければこの項を実行すること｡}
 
-\begin{lstlisting}[caption=OverlayFSの有効化（対話/非対話の例）, label=code:overlay, language=bash]
-# 対話UIで行う方法（raspi-config）
+Raspberry Pi OS は \texttt{raspi-config} から \textbf{Overlay File System} \cite{rpi-config, rpi-overlay-wp}を有効化できる。運用中は rootfs を実質 Read-Only 化し、変更は RAM 上に乗せる。設定変更や更新時のみ一時的に無効化して再起動する運用にする。
 
-sudo raspi-config # Performance Options -> Overlay File System -> Enable
+\begin{lstlisting}[caption=OverlayFS の有効化, label=code:overlay, language=bash]
+# 対話 UI
+sudo raspi-config
+# Performance Options -> Overlay File System -> Enable
 
-# 非対話UIで行う方法（新しめのraspi-configで有効）
+# 非対話（対応バージョンのみ）
 sudo raspi-config nonint enable_overlayfs
 sudo reboot
 \end{lstlisting}
+
+\paragraph{推奨フロー}
+\begin{enumerate}
+  \item 通常運用：OverlayFS 有効
+  \item 設定変更：OverlayFS 無効化 → 再起動 → 変更反映
+  \item 変更確定：OverlayFS 再有効化 → 再起動
+\end{enumerate}
+
 \paragraph{起動・アクセス}
 \begin{itemize}
-\item ターミナルからcncjsコマンドによりCNCjsを起動する｡
-\item ブラウザから \texttt{http://<raspi-ip>:8080/} にアクセスし、CNCjs UIを操作する。ブラウザはGoogle Chromeを推奨する。
-\item ESP32はUSB直結し、CNCjsのポート選択で \texttt{/dev/ttyUSB*} または \texttt{/dev/ttyACM*} を選ぶ。
+  \item ターミナルから \texttt{cncjs} コマンドで起動。
+  \item ブラウザで \texttt{http://<raspi-ip>:8080/} にアクセス（Chrome 推奨）。
+  \item ESP32 は USB 接続し、CNCjs のポート選択で \texttt{/dev/ttyUSB*} または \texttt{/dev/ttyACM*} を選ぶ。
 \end{itemize}
-
-
-
+専用のスクリプトを組んでも良い｡
 \section{機械構築・接続編}
 
-本節では、本CNC制御システムの機械構築と配線について述べる。
-
+本章では、本 CNC 制御システムの機械構築と配線について述べる。
 
 \subsection{必要部品と仕様確認}
 
-本システムは制御系と駆動系が分離される。制御系にはESP32マイコン、ステッピングモータドライバ、Raspberry Pi 4B（CNCjs実行用）、制御系電源ユニット(DC5V､DC3.3Vのもの)を用いる。駆動系にはステッピングモータと伝達機構（リードスクリュー）､駆動系電源ユニット(DC12-24V)を用いる。ステッピングモータは株式会社オオツカと相談して仕様（トルク、定格電流、保持トルク）を決定する。安全系には非常停止スイッチ、ヒューズを備えるべきである。
+本システムは制御系と駆動系を電気的に分離する。制御系には ESP32、ステッピングドライバ、Raspberry Pi 4B（CNCjs 実行）、制御系 5\,V 電源を用いる。駆動系にはステッピングモーターと伝達機構（リードスクリュー）、\SIrange{12}{24}{\volt} のモーター電源を用いる。モーター仕様（トルク、定格電流、保持トルク）は適宜相談して決定する。安全系には非常停止スイッチとヒューズを備える。
 
-現状、スピンドルは制御系と完全に分離されており、独立電源で運用されている。リミットスイッチは物理的には設置済みだが未接続であり、Zプローブは搭載していない。
+現状、スピンドルは制御系と完全分離され、独立電源で運用されている。リミットスイッチは物理設置済みだが未接続、Z プローブは未搭載である。
 
 \subsection{配線計画と電源構成}
 
-配線計画では「系統分離」と「耐環境性」を重視する。モータ用電源、制御系電源、スピンドル電源は物理的に分離し、相互にノイズが回り込まないようにする。モータドライバは典型的にフォトカプラ入力を備えるため、ESP32側のGNDとモータ側のGNDを共通化する必要はない。
+配線計画では「系統分離」と「耐環境性」を重視する。モーター電源、制御系電源、スピンドル電源は物理分離し、ノイズの回り込みを抑える。屋外設置を想定し、耐候性のある屋外用ケーブル（VCT 等、耐 UV シースなど）を使用する。信号線とモーター線は別ルートで引き回し、筐体導入も分離する。整備性・信頼性の観点から、コネクタ点数は可能な限り削減する。
 
-事実上の屋外設置である点を考慮し、耐候性のある屋外用ケーブル（ビニルキャブタイヤケーブルVCT、耐UVシース付きケーブルなど）を使用する。信号線とモータ線は別ルートで配線し、筐体に導入する。整備性､可用性､信頼性の観点から､可能な限りコネクタの数が少ないことが好ましい｡
+\subsection{ステッピングモーターとドライバ接続}
 
-\subsection{ステッピングモータとドライバ接続}
+モーターは 4 線式バイポーラで、\textbf{A+/A−/B+/B− の巻線端子}をドライバに接続する。配線色はメーカーで異なるため、付属資料または導通試験で確認する。片側相の極性を反転すると回転方向が逆転する。
 
-モータには4本の電源線があり、A+/A-/B+/B-の順に接続する。配線色はメーカーにより異なるため、付属資料または導通試験により確認する。片方の相を逆接続することにより回転方向が逆転する｡
+ドライバには電源入力（例：\SI{24}{\volt}）、モーター出力端子に加え、STEP／DIR／EN の入力端子がある。多くの TB6600 \cite{tb6600}ブレイクアウトボードは\textbf{5V 駆動のフォトカプラ入力}であり、\textbf{ESP32 の 3.3\,V 直結では確実に動作しない可能性のある個体}がある点に注意する。配線方針は必ずドライバ仕様に合わせること。
 
-ドライバ側では、電源入力（例: 24VDC）とモータ出力端子のほか、STEP/DIR/EN信号入力端子がある。これらはESP32のGPIOピンから出力され、ドライバのフォトカプラ入力に接続する。フォトカプラの＋端子に信号線、−端子にESP32側のGNDを接続する。マイクロステップ設定はDIPスイッチで行い、機械分解能と加工速度に応じて選択する（例: 1/32ステップ設定）。電流制限もDIPスイッチで設定し、モータ定格電流の90％程度に設定するのが一般的である。
+
+マイクロステップ設定は DIP スイッチで行い、機械分解能と加工速度に応じて選択する（例：1/32 ステップ）。電流制限も DIP で設定し、モーター定格の \SIrange{80}{100}{\percent} 目安で開始する。
 
 \subsection{リミットスイッチ}
 
-X/Y/A軸にリミットスイッチが設置されているが、現状未接続であるため、FluidNCではソフトリミットまたは手動位置決めで運用する。将来接続する場合はNC（常閉）接点を用い、配線には屋外用シールドケーブルを採用する。ノイズ防止のため、信号線はツイストペア構造が望ましい。
+現状は未接続のため、FluidNC ではソフトリミットまたは手動位置決めで運用する。将来導入する場合は \textbf{NC（常閉）接点}を用い、断線検知性を高める。配線は屋外用シールドケーブルとし、ノイズ対策としてツイストペアを推奨。
 
-\subsection{Zプローブ}
+\subsection{Z プローブ}
 
-現状Zプローブは搭載していない。ツール長補正は手動で行い、相対座標系のZ位置を調整する。
+現状は未搭載。ツール長補正は手動で行い、Z 原点の設定ミスによる事故を防ぐため初回は必ず浅切込みまたは空中動作で検証する。
 
 \subsection{スピンドル}
 
-スピンドルは完全に制御系から分離され、独立電源で運用する。制御系からのON/OFF信号は現状送らない。将来的に制御を導入する場合は、ESP32からPWM信号を出力し、適切な変換回路を介して可変電源のアナログ入力に接続する。この場合、信号線は光絶縁するのが好ましい。
+現状は制御系から完全分離し、独立電源で運用する。将来的に制御を導入する場合、ESP32 から PWM を出力し、適切な変換回路を介して可変電源のアナログ入力へ与える。この際、\textbf{光絶縁}を推奨する。
 
 \subsection{非常停止回路}
 
-非常停止（E-Stop）スイッチはモータドライバのENラインにプルダウンまたはプルアップして接続し、押下時にモータ駆動を即時停止させる。加えて、制御系電源を遮断する回路を組み込むことで、より高い安全性を確保できる。非常用スイッチはIP65以上の防水/防塵仕様かつB接点のものを採用するのが好ましい。この場合､ESP32からのEN出力は適切な抵抗器を介して接続する､または絶縁する必要がある｡
+非常停止（E-Stop）は、ステッピングドライバの \texttt{EN} を用いて押下時に\textbf{即時に駆動無効}とする。加えて、\textbf{主電源遮断}（安全リレーや自己保持回路）を組み合わせると安全性が高い。スイッチは \textbf{B 接点（NC）}、\textbf{IP65 以上}を推奨。
 
 \subsection{ノイズ対策と配線整理}
 
-モータ線と信号線は物理的に離して配線する。屋外用ケーブルを用いる場合も、必要に応じてシールドケーブルやフェライトコアを追加し、ノイズの進入を防ぐ。配線はケーブルクランプや配線ダクトで固定し、振動による断線を防止する。
+モーター線と信号線は距離を取り、交差は直角で行う。必要に応じてシールドケーブルやフェライトコアを追加する。配線はケーブルクランプや配線ダクトで固定し、振動断線を防止する。
 
 \subsection{接続テストと初動確認}
 
-全配線が完了したら、以下の手順で動作確認を行う。
-
 \begin{enumerate}
-\item モータが正方向・逆方向に正しく回転するか確認する。X/A軸が逆方向である可能性があるため､Y軸アームが取り外されている状態であることが好ましい｡
-\item リミットスイッチ未接続の前提で動作範囲を確認する。
-\item スピンドルを別系統で安全に起動確認する。
-\item CNCjsから手動ジョグ操作を行い、座標指令と実際の移動方向が一致しているか確認する。
+  \item CNCjs のジョグで各軸が指令方向へ動くか確認（Y アームは外した状態が安全）。
+  \item 回転方向が逆なら \texttt{DIR} 極性または相線の極性を修正。
+  \item リミット未接続前提で安全範囲内を確認。
+  \item スピンドルは別系統で安全に起動確認。
 \end{enumerate}
 
 \subsection{トラブルシュート}
 
-モータが動作しない場合は、ドライバ入力電圧、フォトカプラ入力電圧、GPIO出力状態を順に確認する。ノイズによる誤動作が疑われる場合は、信号線シールド強化や配線経路変更を行う。スピンドルが起動しない場合は、独立電源側のスイッチと安全回路を確認する。
-オシロスコープがあるのが好ましいが､電圧計単体でも信号の確認は行えるので､適切なツールを用いること｡
-
+動かない場合は、（1）ドライバ入力電圧、（2）フォトカプラ入力の電圧レベル、（3）ESP32 の GPIO 出力状態の順で点検する。ノイズ疑いではシールド強化や配線経路見直しを行う。オシロスコープが望ましいが、電圧計でも基本確認は可能。
 
 \section{制御パラメータ}
 
-CNCマシンの動作精度および加工効率は、制御パラメータの適切な設定によって大きく左右される。制御パラメータとは、モータ駆動信号の特性や移動時の加減速、座標系の基準、機構のガタ（バックラッシュ）補正など、機械の運動挙動を規定するものである。本節では、FluidNCを用いた本環境における主要な制御パラメータの設定方針を述べる。
+CNC の動作精度・加工効率は、制御パラメータの適切化に大きく依存する。本節では FluidNC 環境における主要パラメータの設定方針を述べる。
 
 \subsection{ステップパルスと加速度設定}
-ステッピングモータは、ドライバから与えられるパルス信号に同期して回転する。このパルス信号の幅（pulse width）および間隔は、モータの応答性と最大速度に影響する。パルス幅が短すぎるとモータが信号を取りこぼし、長すぎると最高速度が低下する他､誤作動の可能性が高まる。初期設定ではモータドライバの推奨値を用い、安定動作を確認した上で調整を行うと良い。大抵の場合､初期設定で問題ない｡
 
-加速度（acceleration）は、停止状態から目標速度に到達するまでの速度増加率である。過大な加速度設定は脱調を引き起こし、過小な設定は加工時間を延長させる。初期設定では低めに設定し、加工中に問題が発生しない範囲で徐々に引き上げる。
+ステッピングモーターはパルス幅と周期に同期して回転する。パルス幅が短すぎると取りこぼし、長すぎると最高速度低下や誤作動の恐れがある。初期はドライバ推奨値を用い、安定を確認してから調整する（多くのケースで初期値で問題ない）。
 
-\subsection{機械原点およびワーク原点の設定}
-機械原点（Machine Zero）は、CNC機械が認識する絶対座標系の基準位置である。一般に、各軸のリミットスイッチに到達した位置を原点とする。電源投入後は原点復帰（homing）を行い、機械座標を確定させるのが基本である。現状､リミットスイッチが存在しないので機械的な原点は存在しない｡
+加速度は停止から目標速度までの増加率である。過大では脱調、過小では加工時間が増える。低めから開始し、問題が出ない範囲で徐々に引き上げる。
 
-ワーク原点（Work Zero）は、加工対象物（ワーク）の座標系の基準位置である。加工する図面の基準点（例：材料左下角や中央）を決定し、その位置を機械に記憶させる。FluidNCではG54などのワーク座標系コマンドを用いて設定する事ができるが､手動で設定するのが好ましい。
+\subsection{機械原点とワーク原点}
+
+機械原点（Machine Zero）は機械の絶対座標基準で、通常はリミット到達位置を原点とする。電源投入後に原点復帰（homing）して機械座標を確定させるのが基本だが、\textbf{現状はリミット未接続のため homing は行わず、ワーク原点のみで運用}する。
+
+ワーク原点（Work Zero）は加工対象物の基準位置である。図面の基準点（左下角など）を決め、FluidNC の G54 系で設定できるが、当面は手動設定を推奨する。
 
 \subsection{バックラッシュ補正}
-バックラッシュは、送りねじやギアの機構的遊びによって発生する位置誤差である。本環境では、CAMソフトのオフセット設定により補正を行う。補正値は以下の方法で求める。
+
+バックラッシュ（機構的遊び）による誤差は、CAM のオフセット設定で補正する。
 
 \begin{enumerate}
-    \item 長辺と短辺(例:30*40)を持つ長方形の輪郭を切削する。
-    \item 実測値と設計値を比較し、各軸ごとの寸法誤差を算出する。
-    \item CAMソフトに補正オフセットを記入し、再度切削して誤差が最小になるよう調整する。
+  \item 長辺と短辺（例：\SI{30}{\milli\meter} $\times$ \SI{40}{\milli\meter}）の長方形輪郭を切削。
+  \item 実測と設計値の差から各軸の寸法誤差を算出。
+  \item CAM に補正オフセットを設定し、再切削して最小化。
 \end{enumerate}
 
-この工程を繰り返し、可能な限りバックラッシュの影響を低減する。
-
 \subsection{加工前の確認事項}
-制御パラメータを適切に設定しても、加工対象が傾いていたり固定が不十分であれば、寸法精度は保証されない。加工を行う前に、以下を必ず確認すること。
+
 \begin{itemize}
-    \item ワーク設置面が水平であること（水平器等で確認）
-    \item ワークが加工中に動かないよう確実に固定されていること（ネジ等の締結状態を確認）
+  \item ワーク設置面が水平であること（水平器等で確認）。
+  \item ワーク固定が確実であること（締結状態を再確認）。
 \end{itemize}
-フラットベッドは湿度変化に伴う木材の反り・歪み、および過切削による表面凹凸の発生が避けられない構造である。このため、年に一度程度を目安に水平出しを実施し、加工精度を維持することが望ましい。
+
+フラットベッドは湿度変化による木材の反り・歪みや過切削で凹凸が生じる。年 1 回程度を目安に水平出しを行い、精度を維持する。
+
 \subsection{フラットベッドの水平出し}
 
-本機のフラットベッドはスタイロフォーム製であり、湿度による変形や過切削による凹凸の影響を受けやすい。そのため、年に一度程度を目安に水平出しを行い、加工精度を維持することが望ましい。対象ベッドの標準サイズは幅910~mm、長さ1820~mmである。
+本機のフラットベッドはスタイロフォーム製であり、変形や凹凸の影響を受けやすい。標準サイズは幅 \SI{910}{\milli\meter}、長さ \SI{1820}{\milli\meter} である。
 
 \subsubsection*{作業目的}
-水平出しは、ベッド全体を浅く切削して平坦性を回復させる作業である。スタイロフォーム製ベッドでは切り込み量を3～5~mm程度まで許容できるため、凹凸の修正を一度で行える場合が多い。
+ベッド全面を浅く切削して平坦性を回復する。スタイロフォームでは\SIrange{3}{5}{\milli\meter} 程度の切り込みを許容できることが多い。
 
 \subsubsection*{事前準備}
 \begin{itemize}
-    \item 加工前に必ずベッド上の釘やネジ、その他金属部品をすべて撤去する。これを怠ると工具の破損や事故につながる。
-    \item 面取り用またはサーフェスカッター（直径16～25~mm程度、2～3枚刃超硬）を準備する。
-    \item 集塵機やエアブローにより切削粉の排出経路を確保する。
+  \item ベッド上の釘・ネジ・金属部品は\textbf{必ず撤去}（工具破損・事故防止）。
+  \item 面取り用またはサーフェスカッター（直径 \SIrange{16}{25}{\milli\meter}、2--3 枚刃超硬）。
+  \item 集塵機やエアブローで切粉排出経路を確保。
 \end{itemize}
 
 \subsubsection*{手順}
 \begin{enumerate}
-    \item \textbf{原点設定}：ベッド左前端をワーク原点とする。Z原点は適切に設定する。
-    \item \textbf{加工範囲設定}：実寸に基づき、X方向910~mm、Y方向1820~mmの範囲を指定する。安全マージンとして外周20~mm程度を追加してもよい。
-    \item \textbf{切削条件設定}：
-    \begin{itemize}
-        \item 切り込み量（Z方向）：3.0～5.0~mm／パス
-        \item 送り速度：500～800~mm/min
-        \item スピンドル回転数：10,000～16,000~rpm
-    \end{itemize}
-    \item \textbf{パス生成}：CAMソフトにて全面を覆う走査パスを作成する。各パスの間隔は工具径の80～90\%程度とし、パスをオーバーラップさせることで段差を低減する。X方向とY方向の交互切削を推奨するが､非常に時間がかかるのでやらなくても良い。
-    \item \textbf{切削実行}：初回は小さい領域を浅めに加工し、ベッド全体の高低差を確認する。必要に応じて深さを追加して全面を削る。
-    \item \textbf{仕上げ確認}：加工後、凹凸が許容範囲内であれば作業を終了する。
+  \item \textbf{原点設定}：左前端をワーク原点とし、Z 原点を適切に設定。
+  \item \textbf{加工範囲設定}：X=\SI{910}{\milli\meter}、Y=\SI{1820}{\milli\meter} を指定（外周に \SI{20}{\milli\meter} 程度のマージン可）。
+  \item \textbf{切削条件例}：
+  \begin{itemize}
+    \item 切り込み量（Z）：\SIrange{3.0}{5.0}{\milli\meter}／パス
+    \item 送り速度：\SIrange{500}{800}{\milli\meter\per\minute}
+    \item スピンドル回転数：\SIrange{10000}{16000}{rpm}
+  \end{itemize}
+  \item \textbf{パス生成}：全面走査パスを作成。ピッチは工具径の 80--90\% 程度とし、パスをオーバーラップさせて段差を低減。X／Y 交互切削は効果的だが時間がかかるため任意。
+  \item \textbf{切削実行}：まず小領域を浅切削して高低差を把握。必要に応じて深さを足して全面切削。
+  \item \textbf{仕上げ確認}：凹凸が許容範囲なら完了。
 \end{enumerate}
 
-\subsubsection*{注意事項}
+\subsubsection*{注意}
 \begin{itemize}
-    \item 切り込み量が大きい場合でも、ベッド全体を一度で削り切らず、2～3回に分けて行う方が精度を確保しやすい。
-    \item 水平出し後は必ずベッドの損傷具合を確認する｡
+  \item 切込みが大きい場合でも一度で削り切らず、2--3 回に分けると精度が出やすい。
+  \item 水平出し後はベッドの損傷具合を点検する。
 \end{itemize}
-適切な設定を行わないと､30時間以上かかる可能性がある｡太いエンドミルを使うことや､サーフェスカッターを購入することを検討すると良い｡
-｢裏技｣として､6～8時間程度でこれを完了させる方法が存在するが､再現性に乏しいこと､またあまり好ましくない方法であることからここには記載しない｡
+
+適切に設定しないと長時間（数十時間）を要する。太径エンドミルやサーフェスカッターの導入を検討すること。
 
 \section{おまけ}
+
 \subsection*{用語集（機械／加工）}
 \begin{description}
   \item[ステッピングモーター] パルス信号で一定角度ずつ回転するモーター。位置制御に用いる。
   \item[ステッピングドライバ] ステッピングモーターを駆動する回路／モジュール。電流制御やマイクロステップ生成を行う。
-  \item[NEMA17・NEMA23] モーターの取付け寸法規格。数字はフレーム外形（インチ）。NEMA17≈1.7 in（約42 mm）、NEMA23≈2.3 in（約57 mm）。
-  \item[バイポーラ] モーター巻線に双方向の電流を流す駆動方式。一般にユニポーラより高トルクだが電流制御が必要。
+  \item[NEMA17・NEMA23] モーター取付寸法規格。NEMA17 は約 \SI{42}{\milli\meter}、NEMA23 は約 \SI{57}{\milli\meter} フレーム。
+  \item[バイポーラ] 巻線に双方向の電流を流す駆動方式。高トルクだが電流制御が必要。
   \item[リードスクリュー] 回転を直線運動に変えるねじ機構。
-  \item[マイクロステップ] 巻線電流を細かく制御して1ステップを更に分割する駆動。滑らかさ・振動低減に有効（絶対精度は機械剛性や負荷に依存）。
-  \item[保持トルク] 通電して静止を保てる最大トルク。大きいほど外力に強い。
-  \item[脱調] 指令ステップと実際の回転がずれる現象。過負荷・加減速過大・共振などが原因。
-  \item[共振] 機構の固有振動数と駆動周波数が一致して振動が増える現象。速度帯の回避や減衰で対策。
+  \item[マイクロステップ] 巻線電流を細かく制御し 1 ステップを分割。滑らかさ・振動低減に有効。
+  \item[保持トルク] 通電して静止を保てる最大トルク。
+  \item[脱調] 指令ステップと実回転がずれる現象。過負荷・過大加減速・共振が原因。
+  \item[共振] 固有振動数と駆動周波数一致で振動が増える。速度帯回避や減衰で対策。
   \item[バックラッシュ] ねじやギアの遊びによる方向反転時のガタ。オフセット補正やプリロードで低減。
-  \item[リミットスイッチ] 移動端を検出する機械スイッチ。原点復帰や過走行防止に用いる。
-  \item[NC（常閉）接点] 通常は導通し、作動で開放する接点。断線を検知しやすい。
-  \item[Zプローブ] 工具先端のZ=0位置（ワーク上面など）を自動検出する仕組み。
-  \item[スピンドル] 工具を回転させる主軸（モーター）。回転数や剛性が切削品質に影響。
-  \item[エンドミル] 側面・底面で切削できる回転工具。材質・刃数・コーティングで用途が分かれる。
-  \item[サーフェスカッター] ベッドや材料の面出し（平面出し）に使う広幅工具。
-  \item[送り速度] 工具とワークの相対移動速度（mm/min）。切削負荷や仕上げ面に影響。
-  \item[ツール長補正] 工具ごとの長さ差をZオフセットで補正する機能（TLO）。
-  \item[ツイストペア（線）] 2本の導線を撚って外来ノイズを相殺する配線方法。
-  \item[フェライトコア] ケーブルに装着して高周波ノイズを減衰させる磁性体部品。
-  \item[ケーブルクランプ] ケーブルを固定し、引張応力や振動から保護する部品。
-  \item[配線ダクト] ケーブルを収めて整理する樹脂製トラフ（スリット入りも多い）。
+  \item[リミットスイッチ] 移動端検出。原点復帰や過走行防止に用いる。
+  \item[NC（常閉）接点] 通常導通、作動で開放。断線検知に有利。
+  \item[Z プローブ] 工具先端の Z=0 位置を自動検出する仕組み。
+  \item[スピンドル] 工具を回転させる主軸。回転数・剛性が品質に影響。
+  \item[エンドミル] 側面・底面で切削できる工具。
+  \item[サーフェスカッター] 面出しに用いる広幅工具。
+  \item[送り速度] 工具とワークの相対移動速度（\si{\milli\meter\per\minute}）。
+  \item[ツール長補正] 工具長差を Z オフセットで補正。
+  \item[ツイストペア] 2 本を撚ってノイズを相殺する配線。
+  \item[フェライトコア] ケーブルに装着して高周波ノイズを減衰。
+  \item[ケーブルクランプ／配線ダクト] ケーブル固定・整理用部品。
 \end{description}
 
 \subsection*{用語集（電気／信号）}
 \begin{description}
-  \item[STEP] ステッピングモーターの回転指令パルス信号。
-  \item[DIR] ステッピングモーターの回転方向を指定する信号。
-  \item[EN] モーター駆動の有効／無効を切り替える信号（Enable）。
-  \item[GPIO] 汎用入出力ピン（General Purpose Input/Output）。
-  \item[UART（TX/RX）] シリアル通信方式の一種。TXは送信、RXは受信。
-  \item[フォトカプラ] 光を介して信号を伝える絶縁素子。ノイズ耐性・安全性向上に使う。
-  \item[GND] 電気回路の基準電位（グラウンド）。
-  \item[PWM] パルス幅変調。デジタル信号のON/OFF比でアナログ量を表現。
-  \item[DIPスイッチ] 小型のレバー式切り替えスイッチ。設定変更に使う。
-  \item[ストラッピングピン] 起動時の設定を決定するための固定配線端子。
-  \item[ENライン] Enable信号線。機器や回路の動作を有効化する。
+  \item[STEP] ステッピングモーターの回転指令パルス。
+  \item[DIR] 回転方向指定信号。
+  \item[EN] 駆動有効／無効の切替（Enable）。
+  \item[GPIO] 汎用入出力（General Purpose Input/Output）。
+  \item[UART（TX/RX）] シリアル通信方式。TX は送信、RX は受信。
+  \item[フォトカプラ] 光結合で信号を伝える絶縁素子。
+  \item[GND] 回路の基準電位（グラウンド）。
+  \item[PWM] パルス幅変調。
+  \item[DIP スイッチ] 小型レバー式切替スイッチ。
+  \item[ストラッピングピン] 起動設定を決める固定配線端子（GPIO 0, 2, 4, 5, 12, 15 など）。
+  \item[EN ライン] Enable 信号線。
 \end{description}
 
-\subsection*{用語集（CNC固有）}
+\subsection*{用語集（CNC 固有）}
 \begin{description}
-  \item[G-code] CNC機械を制御するための標準的な命令コード。
-  \item[機械原点（Machine Zero）] 機械の基準座標系の原点位置。
+  \item[G-code] CNC 機械を制御する標準命令コード。
+  \item[機械原点（Machine Zero）] 機械座標系の原点位置。
   \item[ワーク原点（Work Zero）] 加工対象物に対する基準位置。
-  \item[Homing（原点復帰）] リミットスイッチ等を使って機械原点に戻す動作。
-  \item[ジョグ操作] 手動(ソフト上)で軸を少しずつ動かす操作。
-  \item[ソフトリミット] 制御ソフト上で設定された移動範囲制限。
-\end{description}
-
-\subsection*{用語集（安全／規格）}
-\begin{description}
-  \item[非常停止] 緊急時に機械の動作を即時停止させること（Emergency Stop）。
-  \item[安全カバー] 作業者を切削くずや工具から保護する覆い。安全規格に準拠する場合も多い。
-  \item[IP65] 国際防水・防塵規格。粉塵の侵入を完全防止し、あらゆる方向からの噴流水にも耐える。
-  \item[B接点] 作動すると導通が切れる接点（NCと同義）。安全検出回路で使用されることが多い。
-  \item[ヒヤリハット] 事故には至らないが、危険につながりかけた事象の記録・共有。
+  \item[Homing（原点復帰）] リミット等を使って機械原点に戻す動作。
+  \item[ジョグ操作] 手動（ソフト上）で軸を少しずつ動かす操作。
+  \item[ソフトリミット] 制御ソフト上の移動範囲制限。
 \end{description}
 
 \subsection*{用語集（数量／単位／制御パラメータ）}
 \begin{description}
-  \item[steps per mm] 1 mm移動するのに必要なステップ数。機構寸法とマイクロステップ設定で決まる。
-  \item[max rate] 最大移動速度。加工や機構に応じて設定する。
-  \item[acceleration] 加速度。加減速のスムーズさや脱調防止に影響する。
-  \item[rpm] 回転毎分（revolutions per minute）。モーターやスピンドルの回転速度の単位。
-  \item[mm/min] 移動速度や送り速度の単位（毎分ミリメートル）。
+  \item[steps per mm] \SI{1}{\milli\meter} 移動に必要なステップ数。
+  \item[max rate] 最大移動速度。
+  \item[acceleration] 加速度。
+  \item[rpm] 回転毎分（revolutions per minute）。
+  \item[\si{\milli\meter\per\minute}] 送り速度の単位。
 \end{description}
 
+\subsection*{選定基準一覧}
+
 \begin{itemize}
-  % Raspberry PiなどのSBC
-  \item シングルボードコンピュータ (例: Raspberry Pi 4B 4GB)
+  \item シングルボードコンピュータ（例：Raspberry Pi 4B 4\,GB）
     \begin{itemize}
-      \item CNCjs+ブラウザが安定稼働する性能（クアッドコアCPU, メモリ4GB以上）
-      \item USBポート複数 (ESP32, 周辺機器用)
-      \item 有線LAN対応、長時間稼働の安定性
-      \item OS + Node.js 環境が容易に構築可能
+      \item CNCjs + ブラウザが安定稼働（クアッドコア、メモリ 4\,GB 以上）
+      \item 複数 USB ポート（ESP32・周辺機器）
+      \item 有線 LAN 対応、長時間稼働の安定性
+      \item OS + Node.js 環境を容易に構築可能
     \end{itemize}
-
-  % ESP32
-  \item ESP32ボード
+  \item ESP32 ボード
     \begin{itemize}
-      \item FluidNCやGRBL互換ファームが動作すること
-      \item ステッピングドライバ向けのパルス/Dir信号出力を十分数確保
-      \item USBシリアルで安定通信可能（Wi-Fiは導入時のみ使用）
-      \item 5V給電で安定動作
+      \item FluidNC／GRBL 互換 FW が動作
+      \item ステッピングドライバ向け STEP／DIR 出力を十分数確保
+      \item USB シリアルが安定（Wi-Fi は導入時のみ）
+      \item 5\,V 系から安定給電（オンボード LDO 経由）
     \end{itemize}
-
-  % ステッピングドライバ
-  \item ステッピングドライバ (例: TB6600)
+  \item ステッピングドライバ（例：TB6600 系）
     \begin{itemize}
-      \item 定格電流3Aクラスに対応可能
-      \item マイクロステップ(1/8～1/32)対応
-      \item ESP32の3.3Vロジック入力で動作
-      \item 放熱性に優れた設計（ヒートシンク, ファン付き推奨）
+      \item 定格電流 3\,A クラス対応
+      \item マイクロステップ（1/8～1/32）
+      \item 入力仕様を確認
+      \item 放熱性（ヒートシンク／ファン）に配慮
     \end{itemize}
-
-  % ステッピングモーター
-  \item ステッピングモーター (NEMA17/23など)
+  \item ステッピングモーター（NEMA17／23）
     \begin{itemize}
-      \item 必要トルクに応じたサイズ
-      \item 定格電流がドライバに収まること
-      \item 慣性負荷に見合ったモデルを選択
+      \item 必要トルク・慣性に見合うサイズ｡12V／3A程度で十分｡
+      \item 定格電流がドライバ範囲内
     \end{itemize}
-
-  % スピンドルモーター
   \item スピンドルモーター
     \begin{itemize}
-      \item ER25コレット対応で工具径の自由度が高いもの
-      \item 加工素材に応じた回転数 (木材/樹脂→1-12kRPM以上推奨)
-      \item 出力200-400W以上
+      \item ER25 コレット対応で工具径自由度
+      \item 木材・樹脂向けに \SI{10000}{rpm} 以上を確保
+      \item \SIrange{200}{400}{\watt} 以上を目安
     \end{itemize}
-
-  % 電源
-  \item 電源 (24V系, 5V系)
+  \item 電源（24\,V 系・5\,V 系・スピンドル用）
     \begin{itemize}
-      \item 24V系: ステッピングモーター数×定格電流＋スピンドル消費をカバー｡1台だと厳しいのでスピンドルと電源はセットで購入
-      \item 5V系: Raspberry Pi/ESP32へ3A以上安定供給
-      \item モーター系と制御系は別電源でノイズ干渉を回避
+      \item 24\,V：モーター本数×定格電流をカバー
+      \item 5\,V：Raspberry Pi／ESP32 へ \SI{3}{\ampere} 以上を安定供給
+      \item モーター系と制御系は\textbf{別系統}でノイズ回避
     \end{itemize}
-
-  % USBケーブル
-  \item USBケーブル (Raspberry Pi–ESP32接続)
+  \item USB ケーブル（Raspberry Pi--ESP32）
     \begin{itemize}
-      \item ノイズ耐性のあるシールド付き
-      \item 長さは必要最小限 (50cm～1m程度)
-      \item ESP32側コネクタ形状に適合 (Micro-B, Type-C等)
+      \item シールド付きでノイズに強い
+      \item 長さは必要最小限（\SIrange{0.5}{1.0}{\meter} 目安）
+      \item コネクタ形状（Micro-B／Type-C）に適合
     \end{itemize}
 \end{itemize}
 
-
-
 \begin{thebibliography}{999}
-\bibitem{fluidnc-installer} FluidNC Web Installer（公式）.
-\bibitem{fluidnc-config} FluidNC Config file Overview（公式Wiki）.
-\bibitem{fluidnc-motion} FluidNC Motion Setup（公式Wiki）.
-\bibitem{espressif-gpio} Espressif ESP-IDF: GPIO \& RTC GPIO（公式）.
-\bibitem{espressif-datasheet} Espressif ESP32 Series Datasheet（公式）.
-\bibitem{rpi-imager-wifi} Raspberry Pi Documentation: Wi-Fi/Imager Advanced Settings（公式）.
-\bibitem{rpi-overlay-wp} Raspberry Pi Whitepaper: Making a more resilient file system（公式）.
-\bibitem{cncjs-install} CNCjs Installation / Raspberry Pi Setup Guide（公式）.
-\bibitem{cncjs-dockerfile} CNCjs 公式Dockerfile（master）.
-\bibitem{dockerhub} Docker Hub: cncjs/cncjs（公式イメージ）.
+
+\bibitem{fluidnc-installer}
+FluidNC Web Installer（公式）.  
+\url{http://wiki.fluidnc.com/en/installation}
+
+\bibitem{fluidnc-config}
+FluidNC Config File Overview（公式 Wiki）.  
+\url{http://wiki.fluidnc.com/config/overview}
+
+\bibitem{fluidnc-motion}
+FluidNC Motion Setup（公式 Wiki）.  
+\url{http://wiki.fluidnc.com/en/support/setup/motion}
+
+\bibitem{espressif-gpio}
+ESP32 のGPIOピンのクセ（非公式） . 
+\url{https://qiita.com/nanbuwks/items/0c5ee8fb4cf10d9c59e1}
+
+\bibitem{espressif-datasheet}
+Espressif ESP32 Series Datasheet（公式）.  
+\url{https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf}
+
+\bibitem{chrome-webserial}
+Google Chrome: Web Serial API ドキュメント（公式）.  
+\url{https://developer.chrome.com/docs/capabilities/serial}
+
+\bibitem{rpi-os}
+Raspberry Pi OS ダウンロードページ（公式）.  
+\url{https://www.raspberrypi.com/software/operating-systems/}
+
+\bibitem{rpi-imager}
+Raspberry Pi Imager（公式）.  
+\url{https://www.raspberrypi.com/software/}
+
+\bibitem{rpi-imager-adv}
+Raspberry Pi Documentation: Imager Advanced Settings（公式）.  
+\url{https://www.raspberrypi.com/documentation/computers/getting-started.html#advanced-options-in-raspberry-pi-imager}
+
+\bibitem{rpi-config}
+Raspberry Pi Configuration（raspi-config, OverlayFS 設定）（公式）.  
+\url{https://www.raspberrypi.com/documentation/computers/configuration.html}
+
+\bibitem{rpi-overlay-wp}
+Raspberry Pi Whitepaper: Making a More Resilient File System（公式）.  
+\url{https://pip.raspberrypi.com/categories/685-app-notes-guides-whitepapers#document-25}
+
+\bibitem{cncjs-site}
+CNCjs 公式サイト.  
+\url{https://cnc.js.org/}
+
+\bibitem{cncjs-install}
+CNCjs Installation Guide（公式）.  
+\url{https://cnc.js.org/docs/installation/}
+
+\bibitem{cncjs-rpi}
+CNCjs Raspberry Pi Setup Guide（公式）.  
+\url{https://cnc.js.org/docs/rpi-setup-guide/}
+
+\bibitem{cncjs-npm}
+CNCjs npm パッケージページ（公式）.  
+\url{https://www.npmjs.com/package/cncjs}
+
+\bibitem{nodejs-pkg}
+Node.js: Install via Package Manager（公式）.  
+\url{https://nodejs.org/en/download/package-manager}
+
+\bibitem{nodesource}
+NodeSource Distributions（公式 GitHub）.  
+\url{https://github.com/nodesource/distributions}
+
+
+\bibitem{systemd-service}
+systemd.service マニュアル（公式 freedesktop.org）.  
+\url{https://www.freedesktop.org/software/systemd/man/systemd.service.html}
+
+\bibitem{tb6600}
+Toshiba TB6600HG ステッピングモータドライバ IC（公式）.  
+\url{https://toshiba.semicon-storage.com/info/TB6600HG_datasheet_ja_20160610.pdf?did=13822&prodName=TB6600HG}
+
 \end{thebibliography}
+
 
 \end{document}
