@@ -18,7 +18,8 @@
   keepspaces=true,
   upquote=true
 }
-
+\usepackage[font=small,labelfont=bf]{caption}
+\captionsetup[figure]{justification=centering}
 \begin{document}
 
 \title{ESP32 + FluidNC + Raspberry Pi 4B + CNCjs レシピ本}
@@ -35,35 +36,52 @@
 
 本書を読むことで、シングルボードコンピュータ（Raspberry Pi など）上でCNCコントローラUI（CNCjs）を動作させ、マイコン（ESP32 など）でステッピングモーター・ドライバを駆動できるようになる。
 
-想定読者は高校卒業直後の初学者とする。わからない語は末尾の用語集を参照し、それでも不明な点は適宜 Google 検索や ChatGPT を用いて補うこと。
+想定読者は高校卒業直後の初学者とする。わからない語は末尾の用語集を参照し、それでも不明な点は適宜 Google 検索や ChatGPT を用いて補うこと。\\
 
+なお､本書の\LaTeX ソースコードは\url{https://github.com/nilpe/CNCrecipe}に存在する｡適宜参照のこと｡
 \section{概念設計図}
 
-本章では、Raspberry Pi 4B 上で CNCjs を動作させ、USB 経由で ESP32（FluidNC）を直接制御する最小構成の全体像を示す（図\ref{fig:minimal}）。
+本章では、Raspberry Pi 4B 上で CNCjs を動作させ、USB 経由で ESP32（FluidNC）を直接制御する最小構成の全体像を示す。
 
 \subsection{全体構成}
 
-Raspberry Pi 4B 上で CNCjs を起動し、USB 接続された ESP32（FluidNC）に対し G-code を送信する。ESP32 はモーター制御信号（STEP／DIR／EN）をステッピングドライバへ出力し、ドライバがステッピングモーターを駆動する。
+Raspberry Pi 4B 上で CNCjs を起動し、USB 接続された ESP32（FluidNC）に対し G-code を送信する。ESP32 はモーター制御信号（STEP／DIR／EN）をステッピングドライバへ出力し、ドライバがステッピングモーターを駆動する。（図\ref{fig:minimal}）
+
 
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[
-  font=\small,
-  node distance=23mm,
-  box/.style={draw, minimum width=22mm, minimum height=12mm, align=center, rounded corners=2pt}
+  >=Stealth,
+  font=\small\sffamily,
+  block/.style={
+    draw,
+    rounded corners=2pt,
+    minimum height=12mm,
+    text width=18mm,      % 固定幅で箱の幅を揃える
+    node distance=15mm,
+    align=center
+  },
+  lbl/.style={
+    midway, above, yshift=2pt,
+    fill=white, inner sep=1pt % ラベルの白縁で線を見やすく
+  }
 ]
-\node[box] (raspi) {Raspberry Pi 4B\\CNCjs};
-\node[box, right=of raspi] (esp32) {ESP32\\FluidNC};
-\node[box, right=of esp32] (driver) {ステッピング\\ドライバ};
-\node[box, right=of driver] (motor) {ステッピング\\モーター};
+\node[block] (raspi) {CNCjs\\ on RasPi};
+\node[block, right=of raspi] (esp32) {ESP32\\FluidNC};
+\node[block, right=of esp32] (driver) {ステッピング\\ドライバ};
+\node[block, right=of driver] (motor) {ステッピング\\モータ};
 
-\draw[->] (raspi) -- node[above]{USB} (esp32);
-\draw[->] (esp32) -- node[above]{STEP/DIR/EN} (driver);
-\draw[->] (driver) -- node[above]{回転駆動電流} (motor);
+\draw[->, semithick]
+  (raspi) -- node[lbl]{USB} (esp32);
+\draw[->, semithick]
+  (esp32) -- node[lbl]{制御信号} (driver);
+\draw[->, semithick]
+  (driver) -- node[lbl]{駆動電流} (motor);
 \end{tikzpicture}
-\caption{Raspberry Pi 直結の最小構成}
+\caption{本CNCの概念図}
 \label{fig:minimal}
 \end{figure}
+
 
 \subsection{必要構成要素（最小）}
 
@@ -117,7 +135,7 @@ Raspberry Pi 4B 上で CNCjs を起動し、USB 接続された ESP32（FluidNC�
 
 \subsection{ESP32 ボードの準備とファーム書き込み}
 
-CNC 用モーションコントローラとして ESP32 を用い、ファームウェアは FluidNC を採用する\cite{fluidnc-installer,fluidnc-config}。初期導入は PC 上の Google Chrome から FluidNC 公式 Web Installer を使用（Web Serial API のため Chrome 前提\cite{chrome-webserial}）。
+CNC 用モーションコントローラとして ESP32 を用い、ファームウェアは FluidNC \cite{fluidnc} を採用する。初期導入は PC 上の Google Chrome から FluidNC 公式 Web Installer \cite{fluidnc-installer}を使用（Web Serial API のため Chrome 前提\cite{chrome-webserial}）。
 \paragraph{手順概観}
 \begin{enumerate}
   \item ESP32 を USB で手元の PC に接続する（給電は PC 側／基板側の二冗長系を推奨）。
@@ -138,7 +156,7 @@ STEP／DIR／EN のピン割付では、\textbf{出力に使ってよい GPIO} �
 
 \subsection{FluidNC の基本設定（Config 欄での方針）}
 
-本書の数値を固定値として信用せず、\textbf{実機を見ながら Config 欄で対話的に調整}する\cite{fluidnc-motion}。理由は、スクリューピッチ、マイクロステップ、剛性、負荷、ドライバ仕様といった\textbf{機械固有要素}が設定値を大きく左右するためである。
+本書の数値を固定値として信用せず、\textbf{実機を見ながら Config 欄で対話的に調整}する\cite{fluidnc-config,fluidnc-motion}。理由は、スクリューピッチ、マイクロステップ、剛性、負荷、ドライバ仕様といった\textbf{機械固有要素}が設定値を大きく左右するためである。
 
 \subsubsection*{設定の流れ（対話的チューニング）}
 \begin{enumerate}
@@ -452,6 +470,11 @@ CNC の動作精度・加工効率は、制御パラメータの適切化に大�
 
 \begin{thebibliography}{999}
 
+\bibitem{fluidnc}
+FluidNC Wiki（公式）.  
+\url{http://wiki.fluidnc.com/en/home}
+
+
 \bibitem{fluidnc-installer}
 FluidNC Web Installer（公式）.  
 \url{http://wiki.fluidnc.com/en/installation}
@@ -473,7 +496,7 @@ Espressif ESP32 Series Datasheet（公式）.
 \url{https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf}
 
 \bibitem{chrome-webserial}
-Google Chrome: Web Serial API ドキュメント（公式）.  
+Google Chrome シリアルポートに対して読み取り / 書き込みを行う（公式）.  
 \url{https://developer.chrome.com/docs/capabilities/serial}
 
 \bibitem{rpi-os}
@@ -485,11 +508,11 @@ Raspberry Pi Imager（公式）.
 \url{https://www.raspberrypi.com/software/}
 
 \bibitem{rpi-imager-adv}
-Raspberry Pi Documentation: Imager Advanced Settings（公式）.  
+Getting started with your Raspberry Pi（公式）.  
 \url{https://www.raspberrypi.com/documentation/computers/getting-started.html#advanced-options-in-raspberry-pi-imager}
 
 \bibitem{rpi-config}
-Raspberry Pi Configuration（raspi-config, OverlayFS 設定）（公式）.  
+Configuration raspi-config （公式）.  
 \url{https://www.raspberrypi.com/documentation/computers/configuration.html}
 
 \bibitem{rpi-overlay-wp}
@@ -497,7 +520,7 @@ Raspberry Pi Whitepaper: Making a More Resilient File System（公式）.
 \url{https://pip.raspberrypi.com/categories/685-app-notes-guides-whitepapers#document-25}
 
 \bibitem{cncjs-site}
-CNCjs 公式サイト.  
+CNCjs （公式）.  
 \url{https://cnc.js.org/}
 
 \bibitem{cncjs-install}
