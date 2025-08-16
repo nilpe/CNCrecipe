@@ -447,12 +447,12 @@ CNC の動作精度・加工効率は、制御パラメータの適切化に大�
     \end{itemize}
   \item ステッピングモーター（NEMA17／23）
     \begin{itemize}
-      \item 必要トルク・慣性に見合うサイズ｡12V／3A程度で十分｡
+      \item 必要トルク・慣性に見合うサイズと出力｡典型的には12V／3A程度で十分｡
       \item 定格電流がドライバ範囲内
     \end{itemize}
   \item スピンドルモーター
     \begin{itemize}
-      \item ER25 コレット対応で工具径自由度
+      \item ER25 コレット対応など十分な工具径自由度
       \item 木材・樹脂向けに \SI{10000}{rpm} 以上を確保
       \item \SIrange{200}{400}{\watt} 以上を目安
     \end{itemize}
@@ -460,15 +460,25 @@ CNC の動作精度・加工効率は、制御パラメータの適切化に大�
     \begin{itemize}
       \item 24\,V：モーター本数×定格電流をカバー
       \item 5\,V：Raspberry Pi／ESP32 へ \SI{3}{\ampere} 以上を安定供給
-      \item モーター系と制御系は\textbf{別系統}でノイズ回避
+      \item スピンドルモーター系と制御系は\textbf{別系統}でノイズ回避
     \end{itemize}
   \item USB ケーブル（Raspberry Pi--ESP32）
     \begin{itemize}
-      \item シールド付きでノイズに強い
+      \item シールド付きでノイズに強いもの
       \item 長さは必要最小限（\SIrange{0.5}{1.0}{\meter} 目安）
       \item コネクタ形状（Micro-B／Type-C）に適合
     \end{itemize}
 \end{itemize}
+
+\section*{改訂履歴}
+\begin{tabular}{|c|c|c|p{8cm}|}
+\hline
+版 & 日付 & 担当 & 変更内容 \\
+\hline
+v1.0 & 2025-08-16 & 小木勇輝 & 初版作成 \\
+\hline
+
+\end{tabular}
 
 
 \bibliographystyle{unsrt} % 出現順で番号付け

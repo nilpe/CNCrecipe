@@ -9,8 +9,8 @@ Fluidnc web installer（公式）.
 \newblock \url{http://wiki.fluidnc.com/en/installation}.
 
 \bibitem{chrome-webserial}
-Google chrome シリアルポートに対して読み取り / 書き込みを行う（公式）.
-\newblock \url{https://developer.chrome.com/docs/capabilities/serial}.
+Web serial api - mdn web docs（日本語）.
+\newblock \url{https://developer.mozilla.org/ja/docs/Web/API/Web_Serial_API}.
 
 \bibitem{espressif-gpio}
 Esp32 のgpioピンのクセ（非公式）.
