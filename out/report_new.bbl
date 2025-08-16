@@ -1,0 +1,83 @@
+\begin{thebibliography}{10}
+
+\bibitem{fluidnc}
+Fluidnc wiki（公式）.
+\newblock \url{http://wiki.fluidnc.com/en/home}.
+
+\bibitem{fluidnc-installer}
+Fluidnc web installer（公式）.
+\newblock \url{http://wiki.fluidnc.com/en/installation}.
+
+\bibitem{chrome-webserial}
+Google chrome シリアルポートに対して読み取り / 書き込みを行う（公式）.
+\newblock \url{https://developer.chrome.com/docs/capabilities/serial}.
+
+\bibitem{espressif-gpio}
+Esp32 のgpioピンのクセ（非公式）.
+\newblock \url{https://qiita.com/nanbuwks/items/0c5ee8fb4cf10d9c59e1}.
+
+\bibitem{espressif-datasheet}
+Espressif esp32 series datasheet（公式）.
+\newblock \url{https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf}.
+
+\bibitem{fluidnc-config}
+Fluidnc config file overview（公式 wiki）.
+\newblock \url{http://wiki.fluidnc.com/config/overview}.
+
+\bibitem{fluidnc-motion}
+Fluidnc motion setup（公式 wiki）.
+\newblock \url{http://wiki.fluidnc.com/en/support/setup/motion}.
+
+\bibitem{cncjs-site}
+Cncjs （公式）.
+\newblock \url{https://cnc.js.org/}.
+
+\bibitem{rpi-os}
+Raspberry pi os ダウンロードページ（公式）.
+\newblock \url{https://www.raspberrypi.com/software/operating-systems/}.
+
+\bibitem{rpi-config}
+Configuration raspi-config （公式）.
+\newblock \url{https://www.raspberrypi.com/documentation/computers/configuration.html}.
+
+\bibitem{rpi-overlay-wp}
+Raspberry pi whitepaper: Making a more resilient file system（公式）.
+\newblock \url{https://pip.raspberrypi.com/categories/685-app-notes-guides-whitepapers#document-25}.
+
+\bibitem{rpi-imager}
+Raspberry pi imager（公式）.
+\newblock \url{https://www.raspberrypi.com/software/}.
+
+\bibitem{rpi-imager-adv}
+Getting started with your raspberry pi（公式）.
+\newblock \url{https://www.raspberrypi.com/documentation/computers/getting-started.html#advanced-options-in-raspberry-pi-imager}.
+
+\bibitem{cncjs-install}
+Cncjs installation guide（公式）.
+\newblock \url{https://cnc.js.org/docs/installation/}.
+
+\bibitem{cncjs-rpi}
+Cncjs raspberry pi setup guide（公式）.
+\newblock \url{https://cnc.js.org/docs/rpi-setup-guide/}.
+
+\bibitem{cncjs-npm}
+Cncjs npm パッケージページ（公式）.
+\newblock \url{https://www.npmjs.com/package/cncjs}.
+
+\bibitem{nodejs-pkg}
+Node.js: Install via package manager（公式）.
+\newblock \url{https://nodejs.org/en/download/package-manager}.
+
+\bibitem{nodesource}
+Nodesource distributions（公式 github）.
+\newblock \url{https://github.com/nodesource/distributions}.
+
+\bibitem{systemd-service}
+systemd.service マニュアル（公式 freedesktop.org）.
+\newblock \url{https://www.freedesktop.org/software/systemd/man/systemd.service.html}.
+
+\bibitem{tb6600}
+Toshiba tb6600hg ステッピングモータドライバ ic（公式）.
+\newblock \url{https://toshiba.semicon-storage.com/info/TB6600HG_datasheet_ja_20160610.pdf?did=13822&prodName=TB6600HG}.
+
+\end{thebibliography}

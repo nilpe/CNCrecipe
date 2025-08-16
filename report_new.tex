@@ -20,6 +20,8 @@
 }
 \usepackage[font=small,labelfont=bf]{caption}
 \captionsetup[figure]{justification=centering}
+
+
 \begin{document}
 
 \title{ESP32 + FluidNC + Raspberry Pi 4B + CNCjs レシピ本}
@@ -468,91 +470,8 @@ CNC の動作精度・加工効率は、制御パラメータの適切化に大�
     \end{itemize}
 \end{itemize}
 
-\begin{thebibliography}{999}
 
-\bibitem{fluidnc}
-FluidNC Wiki（公式）.  
-\url{http://wiki.fluidnc.com/en/home}
-
-
-\bibitem{fluidnc-installer}
-FluidNC Web Installer（公式）.  
-\url{http://wiki.fluidnc.com/en/installation}
-
-\bibitem{fluidnc-config}
-FluidNC Config File Overview（公式 Wiki）.  
-\url{http://wiki.fluidnc.com/config/overview}
-
-\bibitem{fluidnc-motion}
-FluidNC Motion Setup（公式 Wiki）.  
-\url{http://wiki.fluidnc.com/en/support/setup/motion}
-
-\bibitem{espressif-gpio}
-ESP32 のGPIOピンのクセ（非公式） . 
-\url{https://qiita.com/nanbuwks/items/0c5ee8fb4cf10d9c59e1}
-
-\bibitem{espressif-datasheet}
-Espressif ESP32 Series Datasheet（公式）.  
-\url{https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf}
-
-\bibitem{chrome-webserial}
-Google Chrome シリアルポートに対して読み取り / 書き込みを行う（公式）.  
-\url{https://developer.chrome.com/docs/capabilities/serial}
-
-\bibitem{rpi-os}
-Raspberry Pi OS ダウンロードページ（公式）.  
-\url{https://www.raspberrypi.com/software/operating-systems/}
-
-\bibitem{rpi-imager}
-Raspberry Pi Imager（公式）.  
-\url{https://www.raspberrypi.com/software/}
-
-\bibitem{rpi-imager-adv}
-Getting started with your Raspberry Pi（公式）.  
-\url{https://www.raspberrypi.com/documentation/computers/getting-started.html#advanced-options-in-raspberry-pi-imager}
-
-\bibitem{rpi-config}
-Configuration raspi-config （公式）.  
-\url{https://www.raspberrypi.com/documentation/computers/configuration.html}
-
-\bibitem{rpi-overlay-wp}
-Raspberry Pi Whitepaper: Making a More Resilient File System（公式）.  
-\url{https://pip.raspberrypi.com/categories/685-app-notes-guides-whitepapers#document-25}
-
-\bibitem{cncjs-site}
-CNCjs （公式）.  
-\url{https://cnc.js.org/}
-
-\bibitem{cncjs-install}
-CNCjs Installation Guide（公式）.  
-\url{https://cnc.js.org/docs/installation/}
-
-\bibitem{cncjs-rpi}
-CNCjs Raspberry Pi Setup Guide（公式）.  
-\url{https://cnc.js.org/docs/rpi-setup-guide/}
-
-\bibitem{cncjs-npm}
-CNCjs npm パッケージページ（公式）.  
-\url{https://www.npmjs.com/package/cncjs}
-
-\bibitem{nodejs-pkg}
-Node.js: Install via Package Manager（公式）.  
-\url{https://nodejs.org/en/download/package-manager}
-
-\bibitem{nodesource}
-NodeSource Distributions（公式 GitHub）.  
-\url{https://github.com/nodesource/distributions}
-
-
-\bibitem{systemd-service}
-systemd.service マニュアル（公式 freedesktop.org）.  
-\url{https://www.freedesktop.org/software/systemd/man/systemd.service.html}
-
-\bibitem{tb6600}
-Toshiba TB6600HG ステッピングモータドライバ IC（公式）.  
-\url{https://toshiba.semicon-storage.com/info/TB6600HG_datasheet_ja_20160610.pdf?did=13822&prodName=TB6600HG}
-
-\end{thebibliography}
-
+\bibliographystyle{unsrt} % 出現順で番号付け
+\bibliography{refs}       % refs.bib を使う
 
 \end{document}
